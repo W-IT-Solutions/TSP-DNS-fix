@@ -1,12 +1,12 @@
 #!/bin/bash 
 # shellcheck disable=SC2034,SC2015,SC2116
 # Jan 6 2022 - scripting@waaromzomoeilijk.nl
-# Install unbound as local dns cache server, let the system use that as its primary DNS
-# Setup dpinger to monitor all interfaces, bring down, remove routes if gateway on interface is down, monitor health, bring up and add routes when back online.
+# Install unbound as local dns cache server, let the system use that as its primary DNS and let unbound query DNS requests over all LTE interfaces
 # This uses https://www.cloudflare.com/learning/dns/dns-over-tls/ (optional)
+# Final speed tweaks will be added soon and this message will be removed.
 
 ################################ Logger
-INTERACTIVE="0" # 1 = on / 0 = off - Log all script output to file (0) or just output everything in stout (1)
+INTERACTIVE="0" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
 if ! [ $INTERACTIVE == 1 ]; then 
     LOGFILE="/var/log/DNSPI.log" # Log file
     exec 3>&1 4>&2
@@ -15,16 +15,19 @@ if ! [ $INTERACTIVE == 1 ]; then
 fi
 
 ################################ Stock snippits
-# && success "$(date) - INIT - Debug set" || fatal "$(date) - INIT - Setting debug failed"
+# Log line
+# && success "$(date) -  - " || fatal "$(date) -  - "
 
 ################################ Variables and functions
+# Dynamic
 DEBUG="1" # 1 = on / 0 = off
+MAINETHNIC="enp0s31f6" # Interface to ignore, please adjust, should be different on each system
+APTIPV4="1" # Force APT to use IPV4, needed as IPV6 DNS lookups on LTE seem to fail (Note that IPV4 will still resolve both ipv4 and ipv6 addresses)
+# Static
 DATE=$(date +%d-%b-%Y-%H%M)
 COUNTER="0"
 MAINNIC=$(route -n | head -3 | tail -1 | awk '{printf "%s\n",$8}')
 MAINIP=$(ip address show dev "$MAINNIC" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
-UNBOUND=$(cat /tmp/unbound.outgoing.conf)
-MAINETHNIC="enp0s31f6" # Interface to ignore, please adjust, should be different on each system
 
 ################################ CMD line output
 print_text_in_color() {
@@ -106,7 +109,6 @@ set_outgoing_interfaces_unbound(){
 header "Pre init $(date)"
 debug_mode
 root_check && success "$(date) - INIT - Root check ok"
-#health_check_script && success "$(date) - INIT - Health check script created!" || fatal "$(date) - INIT - Failed to create health check script"
 
 ################################ Update and upgrade
 header "Update & upgrade $(date)"
@@ -279,8 +281,11 @@ fi
 
 ################################  Misc
 header "$(date) - Misc"
-#service unbound* restart
-echo 'Acquire::ForceIPv4 “true”;' > /etc/apt/apt.conf.d/99force-ipv4 # Apt ipv4
+service unbound* restart
+
+if [ "$APTIPV4" == "ON" ]; then
+	echo 'Acquire::ForceIPv4 “true”;' > /etc/apt/apt.conf.d/99force-ipv4 && success "$(date) - Misc - Force APT to use IPV4" || fatal "$(date) - Misc - Failed to force APT to use IPV4"
+fi
 
 # End of script
 success "$(date) - Script finished - $COUNTER Warning(s) and / or error(s)"
