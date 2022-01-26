@@ -1,5 +1,5 @@
 # TSP-DNS-fix
-Automated bash script. Installs unbound DNS caching server + DOT + outgoing queries on all interfaces
+Installs unbound DNS caching server + DOT + outgoing queries on all interfaces
 
 ## Download the script, inspect it, adjust variable's and run
 ```
