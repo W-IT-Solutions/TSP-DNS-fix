@@ -44,20 +44,20 @@ success() {
 }
 warning() {
 	/bin/echo -e "${IYellow} $* ${Color_Off}" >&2
-    /bin/echo -e "${IYellow} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log 
-    COUNTER=$((COUNTER+1))       
+    	/bin/echo -e "${IYellow} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log 
+    	COUNTER=$((COUNTER+1))       
 }
 error() {
 	/bin/echo -e "${IRed} $* ${Color_Off}" >&2
-    /bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log
-    COUNTER=$((COUNTER+1))
+  	/bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log
+    	COUNTER=$((COUNTER+1))
 }
 header() {
 	/bin/echo -e "${IBlue} $* ${Color_Off}" >&2
 }
 fatal() {
 	/bin/echo -e "${IRed} $* ${Color_Off}" >&2
-    /bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log    
+    	/bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log    
 	exit 1
 }
 
