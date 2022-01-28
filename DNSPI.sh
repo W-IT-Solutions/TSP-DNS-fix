@@ -187,58 +187,147 @@ cat > /etc/unbound/unbound.conf <<EOF && success "$(date) - Setup Unbound - Wrot
 include: "/etc/unbound/unbound.conf.d/*.conf"
 
 server:
-    # If no logfile is specified, syslog is used
-    logfile: "/var/log/unbound/unbound.log"
-    verbosity: 5
-    
-    # Interface to use to connect to the network. This interface is used to send queries to authoritative servers and receive their replies. 
-    # Can be given multiple times to work on several interfaces. If none are given the default (all) is used. 
-    # outgoing-interface: <ip address or ip6 netblock>
+    ###########################################################################
+    # BASIC SETTINGS
+    ###########################################################################
+    # Time to live maximum for RRsets and messages in the cache. If the maximum
+    # kicks in, responses to clients still get decrementing TTLs based on the
+    # original (larger) values. When the internal TTL expires, the cache item
+    # has expired. Can be set lower to force the resolver to query for data
+    # often, and not trust (very large) TTL values.
+    cache-max-ttl: 86400
+
+    # Time to live minimum for RRsets and messages in the cache. If the minimum
+    # kicks in, the data is cached for longer than the domain owner intended,
+    # and thus less queries are made to look up the data. Zero makes sure the
+    # data in the cache is as the domain owner intended, higher values,
+    # especially more than an hour or so, can lead to trouble as the data in
+    # the cache does not match up with the actual data any more.
+    cache-min-ttl: 300
+
+    # Set the working directory for the program.
+    # directory: "/etc/unbound"
+
+    # RFC 6891. Number of bytes size to advertise as the EDNS reassembly buffer
+    # size. This is the value put into datagrams over UDP towards peers.
+    # 4096 is RFC recommended. 1472 has a reasonable chance to fit within a
+    # single Ethernet frame, thus lessing the chance of fragmentation
+    # reassembly problems (usually seen as timeouts). Setting to 512 bypasses
+    # even the most stringent path MTU problems, but is not recommended since
+    # the amount of TCP fallback generated is excessive.
+    edns-buffer-size: 1472
+
+    # Listen to for queries from clients and answer from this network interface
+    # and port.
+    interface: 0.0.0.0@53
+
+    # Rotates RRSet order in response (the pseudo-random number is taken from
+    # the query ID, for speed and thread safety).
+    rrset-roundrobin: yes
+
+    # Drop user  privileges after  binding the port.
+    username: "unbound"
+
+    # Include outgoing interfaces
     include: "/etc/unbound/outgoing.conf"
 
-    # You can specify the same interfaces in interface: and outgoing-interface: lines, the interfaces are then used for both purposes. 
-    interface: 0.0.0.0
-    #interface: ::0
-    #interface: 127.0.0.1
-    port: 53
-    do-ip4: yes
-    do-udp: yes
-    do-tcp: yes
+    ###########################################################################
+    # LOGGING
+    ###########################################################################
 
-    # May be set to yes if you have IPv6 connectivity
-    do-ip6: no
+    # Do not print log lines to inform about local zone actions
+    log-local-actions: yes
 
-    # You want to leave this to no unless you have *native* IPv6. With 6to4 and
-    # Terredo tunnels your web browser should favor IPv4 for the same reasons
-    prefer-ip6: no
+    # Do not print one line per query to the log
+    log-queries: yes
+
+    # Do not print one line per reply to the log
+    log-replies: yes
+
+    # Do not print log lines that say why queries return SERVFAIL to clients
+    log-servfail: yes
+
+    # Further limit logging
+    logfile: /dev/null
+
+    # Only log errors
+    verbosity: 2
+    use-syslog: yes
 
     # Use this only when you downloaded the list of primary root servers!
     root-hints: "/etc/unbound/root.hints"
 
-    # Trust glue only if it is within the server's authority
-    harden-glue: yes
+    ###########################################################################
+    # PRIVACY SETTINGS
+    ###########################################################################
 
-    # Require DNSSEC data for trust-anchored zones, if such data is absent, the zone becomes BOGUS
+    # RFC 8198. Use the DNSSEC NSEC chain to synthesize NXDO-MAIN and other
+    # denials, using information from previous NXDO-MAINs answers. In other
+    # words, use cached NSEC records to generate negative answers within a
+    # range and positive answers from wildcards. This increases performance,
+    # decreases latency and resource utilization on both authoritative and
+    # recursive servers, and increases privacy. Also, it may help increase
+    # resilience to certain DoS attacks in some circumstances.
+    aggressive-nsec: yes
+
+    # Extra delay for timeouted UDP ports before they are closed, in msec.
+    # This prevents very delayed answer packets from the upstream (recursive)
+    # servers from bouncing against closed ports and setting off all sort of
+    # close-port counters, with eg. 1500 msec. When timeouts happen you need
+    # extra sockets, it checks the ID and remote IP of packets, and unwanted
+    # packets are added to the unwanted packet counter.
+    delay-close: 10000
+
+    # Prevent the unbound server from forking into the background as a daemon
+    # do-daemonize: no
+
+    # Add localhost to the do-not-query-address list.
+    do-not-query-localhost: no
+
+    # Number  of  bytes size of the aggressive negative cache.
+    neg-cache-size: 4M
+
+    # Send minimum amount of information to upstream servers to enhance
+    # privacy (best privacy).
+    qname-minimisation: yes
+
+    ###########################################################################
+    # SECURITY SETTINGS
+    ###########################################################################
+    # Only give access to recursion clients from LAN IPs
+    access-control: 127.0.0.1/32 allow
+    access-control: 192.168.0.0/16 allow
+    access-control: 172.16.0.0/12 allow
+    access-control: 10.0.0.0/8 allow
+    # access-control: fc00::/7 allow
+    # access-control: ::1/128 allow
+
+    # File with trust anchor for  one  zone, which is tracked with RFC5011
+    # probes.
+    # auto-trust-anchor-file: "var/root.key"
+
+    # Enable chroot (i.e, change apparent root directory for the current
+    # running process and its children)
+    # chroot: "/opt/unbound/etc/unbound"
+    
+    # Deny queries of type ANY with an empty response.
+    deny-any: yes
+
+    # Harden against algorithm downgrade when multiple algorithms are
+    # advertised in the DS record.
+    harden-algo-downgrade: yes
+
+    # RFC 8020. returns nxdomain to queries for a name below another name that
+    # is already known to be nxdomain.
+    harden-below-nxdomain: yes
+
+    # Require DNSSEC data for trust-anchored zones, if such data is absent, the
+    # zone becomes bogus. If turned off you run the risk of a downgrade attack
+    # that disables security for a zone.
     harden-dnssec-stripped: yes
 
-    # Don't use Capitalization randomization as it known to cause DNSSEC issues sometimes
-    # see https://discourse.pi-hole.net/t/unbound-stubby-or-dnscrypt-proxy/9378 for further details
-    use-caps-for-id: no
-
-    # Reduce EDNS reassembly buffer size.
-    # Suggested by the unbound man page to reduce fragmentation reassembly problems
-    edns-buffer-size: 1472
-
-    # Perform prefetching of close to expired message cache entries
-    # This only applies to domains that have been frequently queried
-    prefetch: yes
-    prefetch-key: yes
-
-    # One thread should be sufficient, can be increased on beefy machines. In reality for most users running on small networks or on a single machine, it should be unnecessary to seek performance enhancement by increasing num-threads above 1.
-    num-threads: 2
-
-    # Ensure kernel buffer is large enough to not lose messages in traffic spikes
-    so-rcvbuf: 1m
+    # Only trust glue if it is within the servers authority.
+    harden-glue: yes
 
     # Ignore very large queries.
     harden-large-queries: yes
@@ -262,39 +351,175 @@ server:
     # Report this identity rather than the hostname of the server.
     identity: "DNS"
 
-    # Misc 
-    # https://www.reddit.com/r/pihole/comments/d9j1z6/unbound_as_recursive_dns_server_slow_performance/
-    # https://www.reddit.com/r/pihole/comments/dezyvy/into_the_pihole_you_should_go_8_months_later/
-    qname-minimisation: yes
-    use-caps-for-id: yes
-    cache-min-ttl: 0
-    serve-expired: yes
-    msg-cache-size: 128m
-    msg-cache-slabs: 8
-    rrset-roundrobin: yes
-    rrset-cache-size: 256m
-    rrset-cache-slabs: 8
-    key-cache-size: 256m
-    key-cache-slabs: 8
-
     # These private network addresses are not allowed to be returned for public
     # internet names. Any  occurrence of such addresses are removed from DNS
     # answers. Additionally, the DNSSEC validator may mark the  answers  bogus.
     # This  protects  against DNS  Rebinding
+    private-address: 10.0.0.0/8
+    private-address: 172.16.0.0/12
     private-address: 192.168.0.0/16
     private-address: 169.254.0.0/16
-    private-address: 172.16.0.0/12
-    private-address: 10.0.0.0/8
-    private-address: fd00::/8
-    private-address: fe80::/10
+    # private-address: fd00::/8
+    # private-address: fe80::/10
+    # private-address: ::ffff:0:0/96
 
+    # Enable ratelimiting of queries (per second) sent to nameserver for
+    # performing recursion. More queries are turned away with an error
+    # (servfail). This stops recursive floods (e.g., random query names), but
+    # not spoofed reflection floods. Cached responses are not rate limited by
+    # this setting. Experimental option.
+    ratelimit: 1000
+
+    # Use this certificate bundle for authenticating connections made to
+    # outside peers (e.g., auth-zone urls, DNS over TLS connections).
     tls-cert-bundle: /etc/ssl/certs/ca-certificates.crt
-    
-forward-zone:
-    name: "."
-    forward-addr: 1.1.1.1@853#cloudflare-dns.com
-    forward-addr: 1.0.0.1@853#cloudflare-dns.com
-    forward-ssl-upstream: yes
+
+    # Set the total number of unwanted replies to eep track of in every thread.
+    # When it reaches the threshold, a defensive action of clearing the rrset
+    # and message caches is taken, hopefully flushing away any poison.
+    # Unbound suggests a value of 10 million.
+    unwanted-reply-threshold: 10000
+
+    # Use 0x20-encoded random bits in the query to foil spoof attempts. This
+    # perturbs the lowercase and uppercase of query names sent to authority
+    # servers and checks if the reply still has the correct casing.
+    # This feature is an experimental implementation of draft dns-0x20.
+    # Experimental option.
+    use-caps-for-id: yes
+
+    # Help protect users that rely on this validator for authentication from
+    # potentially bad data in the additional section. Instruct the validator to
+    # remove data from the additional section of secure messages that are not
+    # signed properly. Messages that are insecure, bogus, indeterminate or
+    # unchecked are not affected.
+    val-clean-additional: yes
+
+    ###########################################################################
+    # PERFORMANCE SETTINGS
+    ###########################################################################
+    # https://nlnetlabs.nl/documentation/unbound/howto-optimise/
+
+    # Number of slabs in the infrastructure cache. Slabs reduce lock contention
+    # by threads. Must be set to a power of 2.
+    infra-cache-slabs: 4
+
+    # Number of slabs in the key cache. Slabs reduce lock contention by
+    # threads. Must be set to a power of 2. Setting (close) to the number
+    # of cpus is a reasonable guess.
+    key-cache-slabs: 4
+
+    # Number  of  bytes  size  of  the  message  cache.
+    # Unbound recommendation is to Use roughly twice as much rrset cache memory
+    # as you use msg cache memory.
+    msg-cache-size: 128525653
+
+    # Number of slabs in the message cache. Slabs reduce lock contention by
+    # threads. Must be set to a power of 2. Setting (close) to the number of
+    # cpus is a reasonable guess.
+    msg-cache-slabs: 4
+
+    # The number of queries that every thread will service simultaneously. If
+    # more queries arrive that need servicing, and no queries can be jostled
+    # out (see jostle-timeout), then the queries are dropped.
+    # This is best set at half the number of the outgoing-range.
+    # This Unbound instance was compiled with libevent so it can efficiently
+    # use more than 1024 file descriptors.
+    num-queries-per-thread: 4096
+
+    # The number of threads to create to serve clients.
+    # This is set dynamically at run time to effectively use available CPUs
+    # resources
+    num-threads: 3
+
+    # Number of ports to open. This number of file descriptors can be opened
+    # per thread.
+    # This Unbound instance was compiled with libevent so it can efficiently
+    # use more than 1024 file descriptors.
+    outgoing-range: 8192
+
+    # Number of bytes size of the RRset cache.
+    # Use roughly twice as much rrset cache memory as msg cache memory
+    rrset-cache-size: 257051306
+
+    # Number of slabs in the RRset cache. Slabs reduce lock contention by
+    # threads. Must be set to a power of 2.
+    rrset-cache-slabs: 4
+
+    # Do no insert authority/additional sections into response messages when
+    # those sections are not required. This reduces response size
+    # significantly, and may avoid TCP fallback for some responses. This may
+    # cause a slight speedup.
+    minimal-responses: yes
+
+    # # Fetch the DNSKEYs earlier in the validation process, when a DS record
+    # is encountered. This lowers the latency of requests at the expense of
+    # little more CPU usage.
+    prefetch: yes
+
+    # Fetch the DNSKEYs earlier in the validation process, when a DS record is
+    # encountered. This lowers the latency of requests at the expense of little
+    # more CPU usage.
+    prefetch-key: yes
+
+    # Have unbound attempt to serve old responses from cache with a TTL of 0 in
+    # the response without waiting for the actual resolution to finish. The
+    # actual resolution answer ends up in the cache later on.
+    serve-expired: yes
+
+    # Open dedicated listening sockets for incoming queries for each thread and
+    # try to set the SO_REUSEPORT socket option on each socket. May distribute
+    # incoming queries to threads more evenly.
+    so-reuseport: yes
+
+    ###########################################################################
+    # LOCAL ZONE
+    ###########################################################################
+
+    # Include file for local-data and local-data-ptr
+    # include: /etc/unbound/a-records.conf
+
+    ###########################################################################
+    # FORWARD ZONE
+    ###########################################################################
+    forward-zone:
+        # Forward all queries (except those in cache and local zone) to
+        # upstream recursive servers
+        name: "."
+        # Queries to this forward zone use TLS
+        forward-tls-upstream: yes
+
+        # https://dnsprivacy.org/wiki/display/DP/DNS+Privacy+Test+Servers
+
+        # Cloudflare
+        forward-addr: 1.1.1.1@853#cloudflare-dns.com
+        forward-addr: 1.0.0.1@853#cloudflare-dns.com
+        #forward-addr: 2606:4700:4700::1111@853#cloudflare-dns.com
+        #forward-addr: 2606:4700:4700::1001@853#cloudflare-dns.com
+
+        # CleanBrowsing
+        forward-addr: 185.228.168.9@853#security-filter-dns.cleanbrowsing.org
+        forward-addr: 185.228.169.9@853#security-filter-dns.cleanbrowsing.org
+        # forward-addr: 2a0d:2a00:1::2@853#security-filter-dns.cleanbrowsing.org
+        # forward-addr: 2a0d:2a00:2::2@853#security-filter-dns.cleanbrowsing.org
+
+        # Quad9
+        forward-addr: 9.9.9.9@853#dns.quad9.net
+        forward-addr: 149.112.112.112@853#dns.quad9.net
+        # forward-addr: 2620:fe::fe@853#dns.quad9.net
+        # forward-addr: 2620:fe::9@853#dns.quad9.net
+
+        # getdnsapi.net
+        forward-addr: 185.49.141.37@853#getdnsapi.net
+        # forward-addr: 2a04:b900:0:100::37@853#getdnsapi.net
+
+        # Surfnet
+        forward-addr: 145.100.185.15@853#dnsovertls.sinodun.com
+        forward-addr: 145.100.185.16@853#dnsovertls1.sinodun.com
+        # forward-addr: 2001:610:1:40ba:145:100:185:15@853#dnsovertls.sinodun.com
+        # forward-addr: 2001:610:1:40ba:145:100:185:16@853#dnsovertls1.sinodun.com
+
+remote-control:
+    control-enable: yes
 EOF
 
 # Add all available NICs as outbound interface for unbound
