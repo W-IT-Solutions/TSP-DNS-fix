@@ -154,6 +154,12 @@ EOF
 
 systemctl restart systemd-resolved.service && success "$(date) - Resolved - Restarted service" || fatal "$(date) - Resolved - Failed to restart service"
 
+################################  Dhcpcd.conf
+sed -i '/static routers=192.168.8.1/a metric 0' /etc/dhcpcd.conf
+sed -i '/metric 0/a #static domain_name_servers=127.0.0.1' /etc/dhcpcd.conf
+# sed -i '/metric 0/a \ ' /etc/dhcpcd.conf
+sed -i '/static domain_name_servers=127.0.0.1/a \ ' /etc/dhcpcd.conf
+
 ################################ Check resolv.conf, needs to be updated by resolved automagically
 if grep -qrnw -e 'nameserver 127.0.0.1' /etc/resolv.conf ; then 
     warning "$(date) - Resolvconf - 127.0.0.1 is already present in /etc/resolv.conf"  
