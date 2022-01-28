@@ -3,6 +3,12 @@
 # Jan 6 2022 - scripting@waaromzomoeilijk.nl
 # Install unbound as local dns cache server, let the system use that as its primary DNS and let unbound query DNS requests over all LTE interfaces
 # This uses https://www.cloudflare.com/learning/dns/dns-over-tls/ (optional)
+#
+# Unbound needs to build up a cache of results before it starts to speed up.
+# When you browse websites you make dozens of DNS queries for different resources (JavaScript, CSS, etc). 
+# Lots of these libraries are commonly used across multiple websites.
+# Unbound will soon learn where those resources are and won't have to do a full lookup every time.
+#
 # Final speed tweaks will be added soon and this message will be removed.
 
 ################################ Logger
@@ -117,7 +123,7 @@ apt full-upgrade -y && success "$(date) - full-upgrade - Upgraded" || fatal "$(d
 header "Dependencies $(date)"
 apt install -y unbound dnsutils curl && success "$(date) - Dependancies - Installed" || fatal "$(date) - Dependancies - Failed to install"
 
-################################ Get all valid interfaces to setup for dpinger monitoring 
+################################ Get all valid LTE interfaces
 header "$(date) - Get all interfaces"
 cat /dev/null > /tmp/interfaces && success "$(date) - Get all interfaces - Cleared temp file" || fatal "$(date) - Get all interfaces - Failed to clear temp file"
 get_interfaces
@@ -154,13 +160,14 @@ if grep -qrnw -e 'nameserver 127.0.0.1' /etc/resolv.conf ; then
 else 
     mv /etc/resolvconf.conf /etc/resolvconf.conf.backup."$DATE"
     echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf"
+    #echo "nameserver 1.1.1.1" > /etc/resolv.conf
 fi
 ################################ Setup Unbound
 crontab -l | { cat; echo "$CRON /bin/bash $SCRIPTS/$SCRIPTNAME.sh > /dev/null 2>&1"; } | crontab - 
 
 if ! crontab -l | grep "root.hints"; then
     # Cronjob check
-        crontab -l | { cat; echo '0 */6 * * * /usr/bin/curl -o "/etc/unbound/root.hints" "https://www.internic.net/domain/named.cache"'; } | crontab - && success "$(date) - Setup Unbound - Wrote unbound root.hints" || fatal "$(date) - Setup Unbound - Failed to write unbound root.hints"
+        crontab -l | { cat; echo '0 6 * * * /usr/bin/curl -o "/etc/unbound/root.hints" "https://www.internic.net/domain/named.cache"'; } | crontab - && success "$(date) - Setup Unbound - Wrote unbound root.hints" || fatal "$(date) - Setup Unbound - Failed to write unbound root.hints"
 fi
 
 cat > /etc/unbound/unbound.conf <<EOF && success "$(date) - Setup Unbound - Wrote unbound config" || fatal "$(date) - Setup Unbound - Failed to write unbound config"
@@ -242,7 +249,9 @@ server:
     # Report this identity rather than the hostname of the server.
     identity: "DNS"
 
-    # Misc
+    # Misc 
+    # https://www.reddit.com/r/pihole/comments/d9j1z6/unbound_as_recursive_dns_server_slow_performance/
+    # https://www.reddit.com/r/pihole/comments/dezyvy/into_the_pihole_you_should_go_8_months_later/
     qname-minimisation: yes
     use-caps-for-id: yes
     cache-min-ttl: 0
