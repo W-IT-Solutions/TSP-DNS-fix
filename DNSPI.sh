@@ -156,6 +156,13 @@ else
     echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf"
 fi
 ################################ Setup Unbound
+crontab -l | { cat; echo "$CRON /bin/bash $SCRIPTS/$SCRIPTNAME.sh > /dev/null 2>&1"; } | crontab - 
+
+if ! crontab -l | grep "root.hints"; then
+    # Cronjob check
+        crontab -l | { cat; echo '0 */6 * * * /usr/bin/curl -o "/etc/unbound/root.hints" "https://www.internic.net/domain/named.cache"'; } | crontab - && success "$(date) - Setup Unbound - Wrote unbound root.hints" || fatal "$(date) - Setup Unbound - Failed to write unbound root.hints"
+fi
+
 cat > /etc/unbound/unbound.conf <<EOF && success "$(date) - Setup Unbound - Wrote unbound config" || fatal "$(date) - Setup Unbound - Failed to write unbound config"
 include: "/etc/unbound/unbound.conf.d/*.conf"
 
@@ -186,7 +193,7 @@ server:
     prefer-ip6: no
 
     # Use this only when you downloaded the list of primary root servers!
-    # root-hints: "/var/lib/unbound/root.hints"
+    root-hints: "/etc/unbound/root.hints"
 
     # Trust glue only if it is within the server's authority
     harden-glue: yes
@@ -205,6 +212,7 @@ server:
     # Perform prefetching of close to expired message cache entries
     # This only applies to domains that have been frequently queried
     prefetch: yes
+    prefetch-key: yes
 
     # One thread should be sufficient, can be increased on beefy machines. In reality for most users running on small networks or on a single machine, it should be unnecessary to seek performance enhancement by increasing num-threads above 1.
     num-threads: 2
@@ -234,10 +242,18 @@ server:
     # Report this identity rather than the hostname of the server.
     identity: "DNS"
 
+    # Misc
     qname-minimisation: yes
-    prefetch: yes
-    rrset-roundrobin: yes
     use-caps-for-id: yes
+    cache-min-ttl: 0
+    serve-expired: yes
+    msg-cache-size: 128m
+    msg-cache-slabs: 8
+    rrset-roundrobin: yes
+    rrset-cache-size: 256m
+    rrset-cache-slabs: 8
+    key-cache-size: 256m
+    key-cache-slabs: 8
 
     # These private network addresses are not allowed to be returned for public
     # internet names. Any  occurrence of such addresses are removed from DNS
@@ -284,7 +300,7 @@ header "$(date) - Misc"
 service unbound* restart
 
 if [ "$APTIPV4" == "ON" ]; then
-	echo 'Acquire::ForceIPv4 “true”;' > /etc/apt/apt.conf.d/99force-ipv4 && success "$(date) - Misc - Force APT to use IPV4" || fatal "$(date) - Misc - Failed to force APT to use IPV4"
+    echo 'Acquire::ForceIPv4 “true”;' > /etc/apt/apt.conf.d/99force-ipv4 && success "$(date) - Misc - Force APT to use IPV4" || fatal "$(date) - Misc - Failed to force APT to use IPV4"
 fi
 
 # End of script
