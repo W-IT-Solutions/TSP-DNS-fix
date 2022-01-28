@@ -162,14 +162,27 @@ else
     echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf"
     #echo "nameserver 1.1.1.1" > /etc/resolv.conf
 fi
-################################ Setup Unbound
-crontab -l | { cat; echo "$CRON /bin/bash $SCRIPTS/$SCRIPTNAME.sh > /dev/null 2>&1"; } | crontab - 
 
+################################ Setup Unbound
+# Setup root.hint grab cronjob
 if ! crontab -l | grep "root.hints"; then
     # Cronjob check
         crontab -l | { cat; echo '0 6 * * * /usr/bin/curl -o "/etc/unbound/root.hints" "https://www.internic.net/domain/named.cache"'; } | crontab - && success "$(date) - Setup Unbound - Wrote unbound root.hints" || fatal "$(date) - Setup Unbound - Failed to write unbound root.hints"
 fi
 
+# Check and increase net.core.rmem_max
+if grep 'net.core.rmem_max' /etc/sysctl.conf; then
+	sed -i "/net.core.rmem_max" /etc/sysctl.conf
+fi
+
+echo "net.core.rmem_max=1048576" >> /etc/sysctl.conf
+if sysctl -p | grep 'net.core.rmem_max=1048576'; then
+	success "$(date) - Setup Unbound - Increased net.core.rmem_max"
+else
+	fatal "$(date) - Setup Unbound - Failed to increase net.core.rmem_max"
+fi
+
+# Unbound
 cat > /etc/unbound/unbound.conf <<EOF && success "$(date) - Setup Unbound - Wrote unbound config" || fatal "$(date) - Setup Unbound - Failed to write unbound config"
 include: "/etc/unbound/unbound.conf.d/*.conf"
 
