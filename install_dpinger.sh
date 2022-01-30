@@ -1,15 +1,9 @@
 #!/bin/bash 
-# shellcheck disable=SC2034,SC2015,SC2116
+# shellcheck disable=
 # Jan 6 2022 - scripting@waaromzomoeilijk.nl
-# Install unbound as local dns cache server, let the system use that as its primary DNS and let unbound query DNS requests over all LTE interfaces
-# This uses https://www.cloudflare.com/learning/dns/dns-over-tls/ (optional)
 #
-# Unbound needs to build up a cache of results before it starts to speed up.
-# When you browse websites you make dozens of DNS queries for different resources (JavaScript, CSS, etc). 
-# Lots of these libraries are commonly used across multiple websites.
-# Unbound will soon learn where those resources are and won't have to do a full lookup every time.
-#
-# Final speed tweaks will be added soon and this message will be removed.
+# This is a leftover from dpinger testing to fix the interfaces not being managed by their performance/state
+# For reference
 
 ################################ Logger
 INTERACTIVE="0" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
