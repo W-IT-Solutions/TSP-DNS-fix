@@ -28,6 +28,7 @@ DATE=$(date +%d-%b-%Y-%H%M)
 COUNTER="0"
 MAINNIC=$(route -n | head -3 | tail -1 | awk '{printf "%s\n",$8}')
 MAINIP=$(ip address show dev "$MAINNIC" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
+TIME="10" # 10 Seconds mesure period for dpinger
 
 ################################ CMD line output
 print_text_in_color() {
@@ -101,7 +102,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/sbin/dpinger -f -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash /var/scripts/health_check.sh $i"
+ExecStart=/sbin/dpinger -S -i "dpinger $i" -R -o "/tmp/health_$i" -t $TIME -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash /var/scripts/health_check.sh $i"
 Restart=on-failure
 StartLimitBurst=2
 # Restart, but not more than once every 10 minutes
