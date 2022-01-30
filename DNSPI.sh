@@ -91,7 +91,7 @@ debug_mode() {
 
 ################################ Get all interfaces to use (excluding tun tap etc)
 # ip l | awk -F ":" '/^[0-9]+:/{dev=$2 ; if ( dev !~ /^ lo$/) {print $2}}'
-get_interfaces(){
+get_interfaces() {
     readarray -t interfaces < <(ip l | grep enp | grep -v "$MAINETHNIC" |  awk '{printf "%s\n",$2}' | sed 's/://g' | sed -r '/^\s*$/d' | cut -f1 -d"@")
     for i in "${interfaces[@]// /}" ; do 
         echo "$i" >> /tmp/interfaces && success "$(date) - get_interfaces - Found interface: $i"
@@ -99,7 +99,7 @@ get_interfaces(){
 }
 
 ################################ Hardcode outgoing interfaces in unbound config
-set_outgoing_interfaces_unbound(){
+set_outgoing_interfaces_unbound() {
     readarray -t interfaces < <(cat /tmp/interfaces)
     for INTERFACE in "${interfaces[@]// /}" ; do 
         IP=$(ip address show dev "$INTERFACE" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
@@ -188,8 +188,6 @@ fi
 
 # Unbound
 cat > /etc/unbound/unbound.conf <<EOF && success "$(date) - Setup Unbound - Wrote unbound config" || fatal "$(date) - Setup Unbound - Failed to write unbound config"
-include: "/etc/unbound/unbound.conf.d/*.conf"
-
 server:
     ###########################################################################
     # BASIC SETTINGS
@@ -240,23 +238,23 @@ server:
     ###########################################################################
 
     # Do not print log lines to inform about local zone actions
-    log-local-actions: yes
+    log-local-actions: no
 
     # Do not print one line per query to the log
-    log-queries: yes
+    log-queries: no
 
     # Do not print one line per reply to the log
-    log-replies: yes
+    log-replies: no
 
     # Do not print log lines that say why queries return SERVFAIL to clients
-    log-servfail: yes
+    log-servfail: no
 
     # Further limit logging
     logfile: /dev/null
 
     # Only log errors
-    verbosity: 2
-    use-syslog: yes
+    verbosity: 0
+    #use-syslog: yes
 
     # Use this only when you downloaded the list of primary root servers!
     root-hints: "/etc/unbound/root.hints"
@@ -280,7 +278,7 @@ server:
     # close-port counters, with eg. 1500 msec. When timeouts happen you need
     # extra sockets, it checks the ID and remote IP of packets, and unwanted
     # packets are added to the unwanted packet counter.
-    delay-close: 10000
+    delay-close: 2000
 
     # Prevent the unbound server from forking into the background as a daemon
     # do-daemonize: no
@@ -312,7 +310,7 @@ server:
 
     # Enable chroot (i.e, change apparent root directory for the current
     # running process and its children)
-    # chroot: "/opt/unbound/etc/unbound"
+    chroot: "/etc/unbound"
     
     # Deny queries of type ANY with an empty response.
     deny-any: yes
@@ -521,9 +519,6 @@ server:
         forward-addr: 145.100.185.16@853#dnsovertls1.sinodun.com
         # forward-addr: 2001:610:1:40ba:145:100:185:15@853#dnsovertls.sinodun.com
         # forward-addr: 2001:610:1:40ba:145:100:185:16@853#dnsovertls1.sinodun.com
-
-remote-control:
-    control-enable: yes
 EOF
 
 # Add all available NICs as outbound interface for unbound
