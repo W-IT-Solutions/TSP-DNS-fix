@@ -129,7 +129,7 @@ root_check
 #ip rule del from "$NETWORK"."${octet}" table "${tablenum}"
 
 ################################ Bring down the interface
-#ifconfig "$INTERFACE" down && success "$(date) - $INTERFACE - $INTERFACE is brought down" || fatal "$(date) - $INTERFACE - Failed to bring down $INTERFACE"
+#ip link set "$INTERFACE" down && success "$(date) - $INTERFACE - $INTERFACE is brought down" || fatal "$(date) - $INTERFACE - Failed to bring down $INTERFACE"
 
 ################################ Automate based on alert_flag
 my_alarm_cmd() {
@@ -156,7 +156,7 @@ fi
 #do
 #	header "$(date) - $INTERFACE - Loop, checking for connectivity"
 #	# Bring the interface up again in order to test for a connection
-#	ifconfig "$INTERFACE" up && success "$(date) - $INTERFACE - is brought up" || fatal "$(date) - $INTERFACE - Failed to bring up $INTERFACE"	
+#	ip link set "$INTERFACE" up && success "$(date) - $INTERFACE - is brought up" || fatal "$(date) - $INTERFACE - Failed to bring up $INTERFACE"	
 #	CONNECTION=$(/usr/bin/ping -c 5 -I "$INTERFACE" 1.1.1.1)
 #
 #	if "$CONNECTION"; then
