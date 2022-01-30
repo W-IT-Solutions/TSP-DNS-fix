@@ -75,8 +75,7 @@ IP=$(ip address show dev "$INTERFACE" | grep inet | head -1 | awk '{printf "%s\n
 #LOG='/var/log/if_down_checker.log'
 #WAITSEC="60" # Loop time, every 10 seconds
 #CURLTIMEOUT="20" 
-#METRIC=$(route -n | grep 'UG' | grep "$INTERFACE" | awk '{printf "%s\n",$5}')
-METRIC="0"
+METRIC=$(route -n | grep 'UG' | grep "$INTERFACE" | awk '{printf "%s\n",$5}')
 octet=$(ip address show dev "$INTERFACE" | grep inet | awk -F "[/.]" '{print $4;}')
 tablenum=$(( $octet + 100 ))
 
@@ -123,6 +122,14 @@ debug_mode() {
 debug_mode
 root_check
 
+################################ Check / Set lock
+if [ -f /tmp/.script_lock_"$1" ]; then
+    	error "$(date) - $1 - Script is already running"
+	exit 1
+else
+    	touch /tmp/.script_lock_"$1" && start "$(date) - $1 - Created /tmp/.script_lock_$1" || fatal "$(date) - $1 - Failed to create /tmp/.script_lock_$1"
+fi
+
 ################################ Delete routes
 #ip route delete default via "$GW" dev "$INTERFACE" src "$IP" && success "$(date) - $INTERFACE - Deleted routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to delete routes for $INTERFACE"
 #route -vF del -net "$NETWORK".0/24 gw 0.0.0.0 
@@ -131,53 +138,51 @@ root_check
 ################################ Bring down the interface
 #ip link set "$INTERFACE" down && success "$(date) - $INTERFACE - $INTERFACE is brought down" || fatal "$(date) - $INTERFACE - Failed to bring down $INTERFACE"
 
+################################ Set metric higher since we have loss or high latency
+dhcpcd -m 10"${tablenum}" "$INTERFACE" && success "$(date) - $INTERFACE - Metric set to: 10${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 10${tablenum}"
+
 ################################ Automate based on alert_flag
-my_alarm_cmd() {
-	# Set metric high
-	ifmetric "$INTERFACE" 10"${tablenum}" && success "$(date) - $INTERFACE - Metric set to: 10${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 10${tablenum}"
-}
-
-my_clear_cmd() {
-	ifmetric "$INTERFACE" "$METRIC" && success "$(date) - $INTERFACE - Metric set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
-}
-
 # the alert_cmd is invoked as "alert_cmd dest_addr alarm_flag latency_avg loss_avg"
 # alarm_flag is set to 1 if either latency or loss is in alarm state
 # alarm_flag will return to 0 when both have have cleared alarm state
+#if [ "$alarm_flag" -eq 1 ]; then
+#    my_alarm_cmd 
+#else
+#    my_clear_cmd # "$dest_addr" "$latency_avg" "$loss_avg"
+#fi
 
-if [ "$alarm_flag" -eq 1 ]; then
-    my_alarm_cmd 
-else
-    my_clear_cmd # "$dest_addr" "$latency_avg" "$loss_avg"
-fi
 
 ################################ Loop checking for connectivity and adding routes on downed interface
-#while :
-#do
-#	header "$(date) - $INTERFACE - Loop, checking for connectivity"
-#	# Bring the interface up again in order to test for a connection
-#	ip link set "$INTERFACE" up && success "$(date) - $INTERFACE - is brought up" || fatal "$(date) - $INTERFACE - Failed to bring up $INTERFACE"	
-#	CONNECTION=$(/usr/bin/ping -c 5 -I "$INTERFACE" 1.1.1.1)
-#
-#	if "$CONNECTION"; then
-#			ip route add default via "$GW" dev "$INTERFACE" src "$NETWORK"."$octet" table "$tablenum" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
-#
-#			if ! ip rule show | grep -q "$NETWORK.${octet}"; then
-#				ip rule add from "$NETWORK"."${octet}" table "${tablenum}" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
-#		    fi
-#
-#			ifmetric "$INTERFACE" "$METRIC"  && success "$(date) - $INTERFACE - Metric set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
-#
-#			# Abandon the loop.
-#			success "$(date) - $INTERFACE - Break the loop"
-#			break 
-#	else
-#		ifconfig "$INTERFACE" down && error "$(date) - $INTERFACE - $INTERFACE is brought down, still no connection" || fatal "$(date) - $INTERFACE - Failed to bring down $INTERFACE"
- #  	fi
-#
-#	header "$(date) - $INTERFACE - Eat, sleep, bash, repeat"
-#	sleep "$WAITSEC"
-#done
+while :
+do
+	header "$(date) - $INTERFACE - Loop, checking for connectivity"
+	# Bring the interface up again in order to test for a connection
+	#ip link set "$INTERFACE" up && success "$(date) - $INTERFACE - is brought up" || fatal "$(date) - $INTERFACE - Failed to bring up $INTERFACE"	
+	
+	# Check the loss % on the interface
+	CONNECTION=$(cat "/tmp/health_$INTERFACE" | awk '{print $3}')
+
+	if [ "$CONNECTION" -lt "0"; then
+			#ip route add default via "$GW" dev "$INTERFACE" src "$NETWORK"."$octet" table "$tablenum" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
+			#if ! ip rule show | grep -q "$NETWORK.${octet}"; then
+				#ip rule add from "$NETWORK"."${octet}" table "${tablenum}" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
+		    	#fi
+
+			# Loss is 0% set original metric value back
+			dhcpcd -m "$METRIC" "$INTERFACE" && success "$(date) - $INTERFACE - Metric set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
+			dhcpcd -n "$INTERFACE"
+			
+			# Abandon the loop.
+			success "$(date) - $INTERFACE - Break the loop"
+			break 
+	else
+
+		#ifconfig "$INTERFACE" down && error "$(date) - $INTERFACE - $INTERFACE is brought down, still no connection" || fatal "$(date) - $INTERFACE - Failed to bring down $INTERFACE"
+  	fi
+
+	header "$(date) - $INTERFACE - Eat, sleep, bash, repeat"
+	sleep "$WAITSEC"
+done
 
 ################################ Remove lock
 if [ -f /tmp/.script_lock_"$INTERFACE" ]; then
