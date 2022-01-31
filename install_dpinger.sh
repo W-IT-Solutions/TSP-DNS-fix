@@ -8,7 +8,7 @@
 ################################ Logger
 INTERACTIVE="1" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
 if ! [ $INTERACTIVE == 1 ]; then 
-    LOGFILE="/var/log/DNSPI_INSTALL.log" # Log file
+    LOGFILE="/var/log/DPINGER_INSTALL.log" # Log file
     exec 3>&1 4>&2
     trap 'exec 2>&4 1>&3' 0 1 2 3 15 RETURN
     exec 1>>"$LOGFILE" 2>&1
@@ -20,7 +20,7 @@ fi
 
 ################################ Variables and functions
 # Dynamic
-DEBUG="1" # 1 = on / 0 = off
+DEBUG="0" # 1 = on / 0 = off
 MAINETHNIC="enp0s31f6" # Interface to ignore, please adjust, should be different on each system
 APTIPV4="1" # Force APT to use IPV4, needed as IPV6 DNS lookups on LTE seem to fail (Note that IPV4 will still resolve both ipv4 and ipv6 addresses)
 # Static
