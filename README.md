@@ -12,8 +12,8 @@ Lots of these libraries are commonly used across multiple websites.
 Unbound will soon learn where those resources are and won't have to do a full lookup every time.
 
 # Problem
-when the main metric interface is down, by connOff.sh or LTE endpoint failure the routes are still in place. 
-When not changing the metric of the failing interface the system will use the IP setup on that interface for outgoing requests, thus will fail no matter what. 
+When the main metric interface is down, by connOff.sh or LTE endpoint failure, the default routes for that interface are still in place but, obviously not working. 
+When not changing the metric of the failing interface, the system will use the IP setup on that interface for outgoing requests, thus will fail no matter what. 
 
 Its not possible to send traffic out all interfaces at once due to routing issues / ip conflicts on requests and replies.
 for this we'd need bonding, also an option though.
