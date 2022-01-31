@@ -293,7 +293,7 @@ server:
     delay-close: 3000
 
     # Prevent the unbound server from forking into the background as a daemon
-#    do-daemonize: no
+    # do-daemonize: no
 
     # Add localhost to the do-not-query-address list.
     do-not-query-localhost: no
@@ -322,7 +322,7 @@ server:
 
     # Enable chroot (i.e, change apparent root directory for the current
     # running process and its children)
-##    chroot: "/etc/unbound"
+    # chroot: "/etc/unbound"
     
     # Deny queries of type ANY with an empty response.
     deny-any: yes
@@ -511,8 +511,8 @@ server:
         #forward-addr: 2606:4700:4700::1001@853#cloudflare-dns.com
 
         # CleanBrowsing
-#        forward-addr: 185.228.168.9@853#security-filter-dns.cleanbrowsing.org
-#        forward-addr: 185.228.169.9@853#security-filter-dns.cleanbrowsing.org
+        # forward-addr: 185.228.168.9@853#security-filter-dns.cleanbrowsing.org
+        # forward-addr: 185.228.169.9@853#security-filter-dns.cleanbrowsing.org
         # forward-addr: 2a0d:2a00:1::2@853#security-filter-dns.cleanbrowsing.org
         # forward-addr: 2a0d:2a00:2::2@853#security-filter-dns.cleanbrowsing.org
 
@@ -523,15 +523,14 @@ server:
         # forward-addr: 2620:fe::9@853#dns.quad9.net
 
         # getdnsapi.net
-#        forward-addr: 185.49.141.37@853#getdnsapi.net
+        # forward-addr: 185.49.141.37@853#getdnsapi.net
         # forward-addr: 2a04:b900:0:100::37@853#getdnsapi.net
 
         # Surfnet
-#        forward-addr: 145.100.185.15@853#dnsovertls.sinodun.com
-#        forward-addr: 145.100.185.16@853#dnsovertls1.sinodun.com
+        # forward-addr: 145.100.185.15@853#dnsovertls.sinodun.com
+        # forward-addr: 145.100.185.16@853#dnsovertls1.sinodun.com
         # forward-addr: 2001:610:1:40ba:145:100:185:15@853#dnsovertls.sinodun.com
         # forward-addr: 2001:610:1:40ba:145:100:185:16@853#dnsovertls1.sinodun.com
-
 EOF
 
 # Add all available NICs as outbound interface for unbound

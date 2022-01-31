@@ -1,9 +1,6 @@
 #!/bin/bash
-# shellcheck disable=SC2015,SC2004
+# shellcheck disable=SC2015,SC2004,SC2002
 # Jan 6 2022 - scripting@waaromzomoeilijk.nl
-#
-# This is a leftover from dpinger testing to fix the interfaces not being managed by their performance/state
-# For reference
 
 ################################ Logger
 INTERACTIVE="0" # 1 = on / 0 = off - Log all script output to file (0) or just output everything in stout (1)
@@ -19,11 +16,10 @@ print_text_in_color() {
 	/usr/bin/printf "%b%s%b\n" "$1" "$2" "$Color_Off"
 }
 Color_Off='\e[0m'   # Text Reset
-IRed='\e[0;91m' 		# Red
+IRed='\e[0;91m' 	# Red
 IGreen='\e[0;92m'   # Green
 IYellow='\e[0;93m'  # Yellow
-IBlue='\e[0;94m'		# Blue
-ICyan='\e[0;96m'		# Cyan
+IBlue='\e[0;94m'	# Blue
 
 success() {
 	/bin/echo -e "${IGreen} $* ${Color_Off}" >&2
@@ -120,17 +116,34 @@ debug_mode() {
 ################################ Pre
 debug_mode
 root_check
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: dest_addr $2 alarm_flag $3 latency_avg $4 loss_avg $5"
+# Remove when verified
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: dest_addr $dest_addr alarm_flag $alarm_flag latency_avg $latency_avg loss_avg $loss_avg"
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 1 $1"
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 2 $2"
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 3 $3"
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 4 $4"
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 5 $5"
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 6 $6"
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 7 $7"
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 8 $8"
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 9 $9"
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 10 ${10}"
 
-################################ Delete routes
+################################ Delete routes | only for reference
 #ip route delete default via "$GW" dev "$INTERFACE" src "$IP" && success "$(date) - $INTERFACE - Deleted routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to delete routes for $INTERFACE"
 #route -vF del -net "$NETWORK".0/24 gw 0.0.0.0 
 #ip rule del from "$NETWORK"."${octet}" table "${tablenum}"
 
-################################ Bring down the interface
+################################ Bring down the interface | only for reference
 #ip link set "$INTERFACE" down && success "$(date) - $INTERFACE - $INTERFACE is brought down" || fatal "$(date) - $INTERFACE - Failed to bring down $INTERFACE"
 
-################################ Automate based on alert_flag
+################################ Add routes | only for reference
+#ip route add default via "$GW" dev "$INTERFACE" src "$NETWORK"."$octet" table "$tablenum" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
+#if ! ip rule show | grep -q "$NETWORK.${octet}"; then
+	#ip rule add from "$NETWORK"."${octet}" table "${tablenum}" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
+#fi
+
+################################ Automate based on alert_flag | only for reference
 # the alert_cmd is invoked as "alert_cmd dest_addr alarm_flag latency_avg loss_avg"
 # alarm_flag is set to 1 if either latency or loss is in alarm state
 # alarm_flag will return to 0 when both have have cleared alarm state
@@ -155,15 +168,8 @@ do
 	fi
 
 	if [ "$CONNECTION" == "0" ]; then
-		#ip route add default via "$GW" dev "$INTERFACE" src "$NETWORK"."$octet" table "$tablenum" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
-		#if ! ip rule show | grep -q "$NETWORK.${octet}"; then
-			#ip rule add from "$NETWORK"."${octet}" table "${tablenum}" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
-		#fi
-
-		# Loss is 0% set original metric value back
-		#/sbin/dhcpcd -m "$METRIC" "$INTERFACE" && success "$(date) - $INTERFACE - DHCPCD Metric set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
+		# If loss is 0% set original metric value back
 		ifmetric "$INTERFACE" "$METRIC" && success "$(date) - $INTERFACE - IFMETRIC set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
-		#/sbin/dhcpcd -n "$INTERFACE"
 
 		# Abandon the loop.
 		success "$(date) - $INTERFACE - Break the loop"

@@ -1,5 +1,5 @@
 #!/bin/bash 
-# shellcheck disable=
+# shellcheck disable=SC2015
 # Jan 6 2022 - scripting@waaromzomoeilijk.nl
 
 ################################ Logger
@@ -19,15 +19,14 @@ fi
 # Dynamic
 DEBUG="0" # 1 = on / 0 = off
 MAINETHNIC="enp0s31f6" # Interface to ignore, please adjust, should be different on each system
-APTIPV4="1" # Force APT to use IPV4, needed as IPV6 DNS lookups on LTE seem to fail (Note that IPV4 will still resolve both ipv4 and ipv6 addresses)
+#TIME="10" # 10 Seconds measure period for dpinger
+LOSS="15" # Loss % threshold
+LATENCY="200m" # latency threshold in ms, use only m as in NUMBERm and not NUMBERms in var.
 # Static
-DATE=$(date +%d-%b-%Y-%H%M)
+#DATE=$(date +%d-%b-%Y-%H%M)
 COUNTER="0"
 MAINNIC=$(route -n | head -3 | tail -1 | awk '{printf "%s\n",$8}')
 MAINIP=$(ip address show dev "$MAINNIC" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
-TIME="10" # 10 Seconds measure period for dpinger
-LOSS="15" # Loss % threshold
-LATENCY="200m" # latency threshold in ms, use only m as in NUMBERm and not NUMBERms in var.
 
 ################################ CMD line output
 print_text_in_color() {
@@ -87,7 +86,6 @@ debug_mode() {
 cat /dev/null > /var/log/health_check_script_errors_warnings.log && success "$(date) - INIT - Cleaned error/warning log" || error "$(date) - INIT - Failed to clean error/wrning log"
 
 ################################ Get all interfaces to use (excluding tun tap etc)
-# ip l | awk -F ":" '/^[0-9]+:/{dev=$2 ; if ( dev !~ /^ lo$/) {print $2}}'
 get_interfaces(){
     readarray -t interfaces < <(ip l | grep enp | grep -v "$MAINETHNIC" |  awk '{printf "%s\n",$2}' | sed 's/://g' | sed -r '/^\s*$/d' | cut -f1 -d"@")
     for i in "${interfaces[@]// /}" ; do 
