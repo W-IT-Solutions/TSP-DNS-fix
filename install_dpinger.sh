@@ -109,7 +109,7 @@ After=network.target
 Type=simple
 ExecStart=/sbin/dpinger -f -S -i "dpinger $i" -R -o "/tmp/health_$i" -D $LATENCY -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash /var/scripts/health_check.sh $i"
 Restart=on-failure
-StartLimitBurst=4
+StartLimitBurst=2
 # Restart, but not more than once every 10 minutes
 #StartLimitInterval=600
 StartLimitInterval=30
