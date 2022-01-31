@@ -139,6 +139,7 @@ header "Pre init $(date)"
 debug_mode
 root_check && success "$(date) - INIT - Root check ok"
 #health_check_script && success "$(date) - INIT - Health check script created!" || fatal "$(date) - INIT - Failed to create health check script"
+rm -rf /tmp/.script_lock_* && success "$(date) - $INTERFACE - Removed lock file" || error "$(date) - $INTERFACE - Failed to remove lock file"
 
 ################################ Update and upgrade
 header "Update & upgrade $(date)"
