@@ -1,6 +1,12 @@
 #!/bin/bash 
 # shellcheck disable=SC2015
 # Jan 6 2022 - scripting@waaromzomoeilijk.nl
+# https://gitlab.com/pfsense/dpinger
+# dpinger is a daemon for continuous monitoring of latency and loss on a network connection. 
+# It is intended for use by firewalls to monitor link health, as well as for providing information to
+# various monitoring systems such as Cacti, Nagios, Zabbix, etc.
+#
+# If dpinger thresholds exceed, it calls a custom script that sets the metric + 1000 and then monitors for it to fall under acceptable levels, and set metric to the original value.
 
 ################################ Logger
 INTERACTIVE="1" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
