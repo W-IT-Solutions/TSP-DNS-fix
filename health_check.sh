@@ -76,6 +76,7 @@ WAITSEC="10" # Loop time, every 10 seconds
 METRIC=$(route -n | grep 'UG' | grep "$INTERFACE" | awk '{printf "%s\n",$5}')
 octet=$(ip address show dev "$INTERFACE" | grep inet | awk -F "[/.]" '{print $4;}')
 tablenum=$(( $octet + 100 ))
+LOSS="5"
 
 # Dpinger vars
 # CHECK OTHER VAR $1 FROM SYSTEMD DPINGER CMD
@@ -152,7 +153,7 @@ do
 		success "$(date) - $INTERFACE - Read /tmp/health_$INTERFACE: loss % is at: $CONNECTION"
 	fi
 	
-	if [ "$CONNECTION" == "0" ]; then
+	if [ "$CONNECTION" -lt 1 ]; then
 		#ip route add default via "$GW" dev "$INTERFACE" src "$NETWORK"."$octet" table "$tablenum" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
 		#if ! ip rule show | grep -q "$NETWORK.${octet}"; then
 			#ip rule add from "$NETWORK"."${octet}" table "${tablenum}" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
@@ -165,7 +166,7 @@ do
 		# Abandon the loop.
 		success "$(date) - $INTERFACE - Break the loop"
 		break 
-	elif [ "$CONNECTION" -gt "5" ]; then
+	elif [ "$CONNECTION" -gt "$LOSS" ]; then
 		error "$(date) - $INTERFACE - Loss % is still higher then threshold - CONNECTION -gt 5"
 		
 		# Set metric higher since we have loss or high latency
