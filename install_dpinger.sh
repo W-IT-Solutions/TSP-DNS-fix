@@ -1,9 +1,6 @@
 #!/bin/bash 
 # shellcheck disable=
 # Jan 6 2022 - scripting@waaromzomoeilijk.nl
-#
-# This is a leftover from dpinger testing to fix the interfaces not being managed by their performance/state
-# For reference
 
 ################################ Logger
 INTERACTIVE="1" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
