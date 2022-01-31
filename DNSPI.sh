@@ -34,6 +34,7 @@ DATE=$(date +%d-%b-%Y-%H%M)
 COUNTER="0"
 MAINNIC=$(route -n | head -3 | tail -1 | awk '{printf "%s\n",$8}')
 MAINIP=$(ip address show dev "$MAINNIC" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
+SYSCTL=$(grep 'net.core.rmem_max' /etc/sysctl.conf)
 
 ################################ CMD line output
 print_text_in_color() {
@@ -147,7 +148,7 @@ cp /etc/systemd/resolved.conf /etc/systemd/resolved.conf.backup."$DATE" && succe
 cat > /etc/systemd/resolved.conf <<EOF && success "$(date) - Resolved - New config set" || fatal "$(date) - Resolved - Failed to set new config"
 [Resolve]
 DNS=127.0.0.1
-FallbackDNS=1.0.0.1
+FallbackDNS=1.0.0.1 1.1.1.1 8.8.8.8 8.8.4.4
 MulticastDNS=no
 DNSStubListener=no
 EOF
@@ -155,8 +156,8 @@ EOF
 systemctl restart systemd-resolved.service && success "$(date) - Resolved - Restarted service" || fatal "$(date) - Resolved - Failed to restart service"
 
 ################################  Dhcpcd.conf
-sed -i '/static routers=192.168.8.1/a static domain_name_servers=127.0.0.1' /etc/dhcpcd.conf
-sed -i '/static domain_name_servers=127.0.0.1/a \ ' /etc/dhcpcd.conf
+#sed -i '/static routers=192.168.8.1/a static domain_name_servers=127.0.0.1' /etc/dhcpcd.conf
+#sed -i '/static domain_name_servers=127.0.0.1/a \ ' /etc/dhcpcd.conf
 
 ################################ Check resolv.conf, needs to be updated by resolved automagically
 if grep -qrnw -e 'nameserver 127.0.0.1' /etc/resolv.conf ; then 
@@ -165,6 +166,7 @@ else
     mv /etc/resolvconf.conf /etc/resolvconf.conf.backup."$DATE"
     echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf"
     #echo "nameserver 1.1.1.1" > /etc/resolv.conf
+    crontab -l | { cat; echo '* * * * * echo "nameserver 127.0.0.1" > /etc/resolv.conf'; } | crontab - && success "$(date) - Resolvconf - Set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf"
 fi
 
 ################################ Setup Unbound
@@ -175,11 +177,12 @@ if ! crontab -l | grep "root.hints"; then
 fi
 
 # Check and increase net.core.rmem_max
-if grep 'net.core.rmem_max' /etc/sysctl.conf; then
-	sed -i "/net.core.rmem_max" /etc/sysctl.conf
+if $SYSCTL; then
+	sed -i "/net.core.rmem_max/d" /etc/sysctl.conf && success "$(date) - RMEM MAX - Removed old value from sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to remove old value from sysctl.conf"
+	echo "#net.core.rmem_max=$SYSCTL # Old value" >> /etc/sysctl.conf && success "$(date) - RMEM MAX - Backed up old value of rmem_max in sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to backup old value of rmem_max in sysctl.conf"
 fi
 
-echo "net.core.rmem_max=1048576" >> /etc/sysctl.conf
+echo "net.core.rmem_max=1048576" >> /etc/sysctl.conf 
 if sysctl -p | grep 'net.core.rmem_max=1048576'; then
 	success "$(date) - Setup Unbound - Increased net.core.rmem_max"
 else
@@ -189,9 +192,12 @@ fi
 # Unbound
 cat > /etc/unbound/unbound.conf <<EOF && success "$(date) - Setup Unbound - Wrote unbound config" || fatal "$(date) - Setup Unbound - Failed to write unbound config"
 server:
+server:
     ###########################################################################
     # BASIC SETTINGS
     ###########################################################################
+    domain-insecure: "tlvproxy.thesocialproxy.com"
+
     # Time to live maximum for RRsets and messages in the cache. If the maximum
     # kicks in, responses to clients still get decrementing TTLs based on the
     # original (larger) values. When the internal TTL expires, the cache item
@@ -205,7 +211,7 @@ server:
     # data in the cache is as the domain owner intended, higher values,
     # especially more than an hour or so, can lead to trouble as the data in
     # the cache does not match up with the actual data any more.
-    cache-min-ttl: 300
+    cache-min-ttl: 600
 
     # Set the working directory for the program.
     # directory: "/etc/unbound"
@@ -219,7 +225,7 @@ server:
     # the amount of TCP fallback generated is excessive.
     edns-buffer-size: 1472
 
-    # Listen to for queries from clients and answer from this network interface
+    # Listen for queries from clients and answer from this network interface
     # and port.
     interface: 0.0.0.0@53
 
@@ -232,6 +238,12 @@ server:
 
     # Include outgoing interfaces
     include: "/etc/unbound/outgoing.conf"
+
+    #  stops the resolver from withholding bogus answers from clients. Resolution may be slow due to validation failures but can still proceed
+    val-permissive-mode: yes
+    
+    # Turn off validator module for DNSSEC
+    module-config: "iterator"
 
     ###########################################################################
     # LOGGING
@@ -247,17 +259,17 @@ server:
     log-replies: no
 
     # Do not print log lines that say why queries return SERVFAIL to clients
-    log-servfail: no
+    log-servfail: yes
 
     # Further limit logging
-    logfile: /dev/null
+    # logfile: /dev/null
 
     # Only log errors
-    verbosity: 0
-    #use-syslog: yes
+    verbosity: 2
+    use-syslog: yes
 
     # Use this only when you downloaded the list of primary root servers!
-    root-hints: "/etc/unbound/root.hints"
+##    root-hints: "root.hints"
 
     ###########################################################################
     # PRIVACY SETTINGS
@@ -278,10 +290,10 @@ server:
     # close-port counters, with eg. 1500 msec. When timeouts happen you need
     # extra sockets, it checks the ID and remote IP of packets, and unwanted
     # packets are added to the unwanted packet counter.
-    delay-close: 2000
+    delay-close: 3000
 
     # Prevent the unbound server from forking into the background as a daemon
-    # do-daemonize: no
+#    do-daemonize: no
 
     # Add localhost to the do-not-query-address list.
     do-not-query-localhost: no
@@ -310,7 +322,7 @@ server:
 
     # Enable chroot (i.e, change apparent root directory for the current
     # running process and its children)
-    chroot: "/etc/unbound"
+##    chroot: "/etc/unbound"
     
     # Deny queries of type ANY with an empty response.
     deny-any: yes
@@ -431,7 +443,7 @@ server:
     # The number of threads to create to serve clients.
     # This is set dynamically at run time to effectively use available CPUs
     # resources
-    num-threads: 3
+    num-threads: 2
 
     # Number of ports to open. This number of file descriptors can be opened
     # per thread.
@@ -499,8 +511,8 @@ server:
         #forward-addr: 2606:4700:4700::1001@853#cloudflare-dns.com
 
         # CleanBrowsing
-        forward-addr: 185.228.168.9@853#security-filter-dns.cleanbrowsing.org
-        forward-addr: 185.228.169.9@853#security-filter-dns.cleanbrowsing.org
+#        forward-addr: 185.228.168.9@853#security-filter-dns.cleanbrowsing.org
+#        forward-addr: 185.228.169.9@853#security-filter-dns.cleanbrowsing.org
         # forward-addr: 2a0d:2a00:1::2@853#security-filter-dns.cleanbrowsing.org
         # forward-addr: 2a0d:2a00:2::2@853#security-filter-dns.cleanbrowsing.org
 
@@ -511,14 +523,15 @@ server:
         # forward-addr: 2620:fe::9@853#dns.quad9.net
 
         # getdnsapi.net
-        forward-addr: 185.49.141.37@853#getdnsapi.net
+#        forward-addr: 185.49.141.37@853#getdnsapi.net
         # forward-addr: 2a04:b900:0:100::37@853#getdnsapi.net
 
         # Surfnet
-        forward-addr: 145.100.185.15@853#dnsovertls.sinodun.com
-        forward-addr: 145.100.185.16@853#dnsovertls1.sinodun.com
+#        forward-addr: 145.100.185.15@853#dnsovertls.sinodun.com
+#        forward-addr: 145.100.185.16@853#dnsovertls1.sinodun.com
         # forward-addr: 2001:610:1:40ba:145:100:185:15@853#dnsovertls.sinodun.com
         # forward-addr: 2001:610:1:40ba:145:100:185:16@853#dnsovertls1.sinodun.com
+
 EOF
 
 # Add all available NICs as outbound interface for unbound
@@ -535,7 +548,7 @@ systemctl restart unbound.service && success "$(date) - Setup Unbound - Restarte
 # Clear current DNS cache
 systemd-resolve --flush-caches && success "$(date) - DNS Check - Flush DNS" || fatal "$(date) - DNS Check - Flushing DNS failed"
 
-if host google.com 127.0.0.1; then
+if host facebook.com 127.0.0.1; then
     success "$(date) - DNS Check - DNS is working via 127.0.0.1 to unbound!"
 else
     fatal "$(date) - DNS Check - DNS is not working via 127.0.0.1 to unbound!"
