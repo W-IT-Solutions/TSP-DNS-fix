@@ -6,9 +6,9 @@
 # For reference
 
 ################################ Logger
-INTERACTIVE="0" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
+INTERACTIVE="1" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
 if ! [ $INTERACTIVE == 1 ]; then 
-    LOGFILE="/var/log/DNSPI.log" # Log file
+    LOGFILE="/var/log/DNSPI_INSTALL.log" # Log file
     exec 3>&1 4>&2
     trap 'exec 2>&4 1>&3' 0 1 2 3 15 RETURN
     exec 1>>"$LOGFILE" 2>&1
@@ -28,9 +28,9 @@ DATE=$(date +%d-%b-%Y-%H%M)
 COUNTER="0"
 MAINNIC=$(route -n | head -3 | tail -1 | awk '{printf "%s\n",$8}')
 MAINIP=$(ip address show dev "$MAINNIC" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
-TIME="5" # 10 Seconds mesure period for dpinger
+TIME="10" # 10 Seconds measure period for dpinger
 LOSS="15" # Loss % threshold
-LATENCY="250m" # latency threshold
+LATENCY="200m" # latency threshold in ms, use only m as in NUMBERm and not NUMBERms in var.
 
 ################################ CMD line output
 print_text_in_color() {
@@ -86,6 +86,9 @@ debug_mode() {
 	fi
 }
 
+################################ Clean error log
+cat /dev/null > /var/log/health_check_script_errors_warnings.log && success "$(date) - INIT - Cleaned error/warning log" || error "$(date) - INIT - Failed to clean error/wrning log"
+
 ################################ Get all interfaces to use (excluding tun tap etc)
 # ip l | awk -F ":" '/^[0-9]+:/{dev=$2 ; if ( dev !~ /^ lo$/) {print $2}}'
 get_interfaces(){
@@ -104,12 +107,12 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/sbin/dpinger -S -i "dpinger $i" -R -o "/tmp/health_$i" -t $TIME -D $LATENCY -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash /var/scripts/health_check.sh $i"
+ExecStart=/sbin/dpinger -f -S -i "dpinger $i" -R -o "/tmp/health_$i" -D $LATENCY -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash /var/scripts/health_check.sh $i"
 Restart=on-failure
-StartLimitBurst=2
+StartLimitBurst=4
 # Restart, but not more than once every 10 minutes
-StartLimitInterval=600
-#StartLimitInterval=30
+#StartLimitInterval=600
+StartLimitInterval=30
 
 [Install]
 WantedBy=multi-user.target
