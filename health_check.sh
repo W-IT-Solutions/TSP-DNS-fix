@@ -6,7 +6,7 @@
 # For reference
 
 ################################ Logger
-INTERACTIVE="1" # 1 = on / 0 = off - Log all script output to file (0) or just output everything in stout (1)
+INTERACTIVE="0" # 1 = on / 0 = off - Log all script output to file (0) or just output everything in stout (1)
 if ! [ "$INTERACTIVE" == 1 ]; then 
     LOGFILE="/var/log/health_check.log" # Log file
     exec 3>&1 4>&2
@@ -120,6 +120,7 @@ debug_mode() {
 ################################ Pre
 debug_mode
 root_check
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: dest_addr $2 alarm_flag $3 latency_avg $4 loss_avg $5"
 
 ################################ Delete routes
 #ip route delete default via "$GW" dev "$INTERFACE" src "$IP" && success "$(date) - $INTERFACE - Deleted routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to delete routes for $INTERFACE"
@@ -143,16 +144,16 @@ root_check
 while :
 do
 	header "$(date) - $INTERFACE - Loop, checking for connectivity"
-	
+
 	# Check the loss % on the interface
 	CONNECTION=$(cat "/tmp/health_$INTERFACE" | awk '{print $5}')
-	
-	if ! [ -f /tmp/health_$INTERFACE ]; then
+
+	if ! [ -f /tmp/health_"$INTERFACE" ]; then
 		error "$(date) - $INTERFACE - Failed to read /tmp/health_$INTERFACE"
 	else
 		success "$(date) - $INTERFACE - Read /tmp/health_$INTERFACE: loss % is at: $CONNECTION"
 	fi
-	
+
 	if [ "$CONNECTION" -lt 1 ]; then
 		#ip route add default via "$GW" dev "$INTERFACE" src "$NETWORK"."$octet" table "$tablenum" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
 		#if ! ip rule show | grep -q "$NETWORK.${octet}"; then
@@ -160,21 +161,28 @@ do
 		#fi
 
 		# Loss is 0% set original metric value back
-		ifmetric "$INTERFACE" "$METRIC" && success "$(date) - $INTERFACE - Metric set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
+		dhcpcd -m "$METRIC" "$INTERFACE" && success "$(date) - $INTERFACE - DHCPCD Metric set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
+		ifmetric "$INTERFACE" "$METRIC" && success "$(date) - $INTERFACE - IFMETRIC set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
 		#/sbin/dhcpcd -n "$INTERFACE"
 
 		# Abandon the loop.
 		success "$(date) - $INTERFACE - Break the loop"
-		break 
+		break
 	elif [ "$CONNECTION" -gt "$LOSS" ]; then
 		error "$(date) - $INTERFACE - Loss % is still higher then threshold - CONNECTION -gt 5"
-		
-		# Set metric higher since we have loss or high latency
-		#/sbin/dhcpcd -m 1"${tablenum}" "$INTERFACE" && success "$(date) - $INTERFACE - Metric set to: 10${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 10${tablenum}"
-		ifmetric "$INTERFACE" 1"${tablenum}" && success "$(date) - $INTERFACE - Metric set to: 10${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 10${tablenum}"
 
+		CURRENTMETRIC=$(route -n | grep 'UG' | grep "$INTERFACE" | awk '{printf "%s\n",$5}')
+		NEWMETRIC=$(( $tablenum + 1000 ))
+
+		if [ "$CURRENTMETRIC" == "$NEWMETRIC" ]; then
+			warning "$(date) - $INTERFACE - Metric already set to: 1${tablenum}"
+		else
+			# Set metric higher since we have loss or high latency
+			/sbin/dhcpcd -m 1"${tablenum}" "$INTERFACE" && success "$(date) - $INTERFACE - DHCPCD Metric set to: 1${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 1${tablenum}"
+			ifmetric "$INTERFACE" 1"${tablenum}" && success "$(date) - $INTERFACE - IFMETRIC set to: 1${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 1${tablenum}"
+		fi
 	fi
-	
+
 	header "$(date) - $INTERFACE - Eat, sleep, bash, repeat"
 	sleep "$WAITSEC"
 done
