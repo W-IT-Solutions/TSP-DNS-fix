@@ -154,14 +154,14 @@ do
 		success "$(date) - $INTERFACE - Read /tmp/health_$INTERFACE: loss % is at: $CONNECTION"
 	fi
 
-	if [ "$CONNECTION" -lt 1 ]; then
+	if [ "$CONNECTION" == "0" ]; then
 		#ip route add default via "$GW" dev "$INTERFACE" src "$NETWORK"."$octet" table "$tablenum" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
 		#if ! ip rule show | grep -q "$NETWORK.${octet}"; then
 			#ip rule add from "$NETWORK"."${octet}" table "${tablenum}" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
 		#fi
 
 		# Loss is 0% set original metric value back
-		dhcpcd -m "$METRIC" "$INTERFACE" && success "$(date) - $INTERFACE - DHCPCD Metric set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
+		#/sbin/dhcpcd -m "$METRIC" "$INTERFACE" && success "$(date) - $INTERFACE - DHCPCD Metric set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
 		ifmetric "$INTERFACE" "$METRIC" && success "$(date) - $INTERFACE - IFMETRIC set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
 		#/sbin/dhcpcd -n "$INTERFACE"
 
@@ -178,7 +178,7 @@ do
 			warning "$(date) - $INTERFACE - Metric already set to: 1${tablenum}"
 		else
 			# Set metric higher since we have loss or high latency
-			/sbin/dhcpcd -m 1"${tablenum}" "$INTERFACE" && success "$(date) - $INTERFACE - DHCPCD Metric set to: 1${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 1${tablenum}"
+			#/sbin/dhcpcd -m 1"${tablenum}" "$INTERFACE" && success "$(date) - $INTERFACE - DHCPCD Metric set to: 1${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 1${tablenum}"
 			ifmetric "$INTERFACE" 1"${tablenum}" && success "$(date) - $INTERFACE - IFMETRIC set to: 1${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 1${tablenum}"
 		fi
 	fi
