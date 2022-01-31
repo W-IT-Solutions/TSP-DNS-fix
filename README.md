@@ -40,7 +40,7 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 `bash DNSPI.sh`
 
 
-## In action:
+## showcase of working DNS with main interface down:
 ```
 ############ root@raspberry:~# route -n
 Kernel IP routing table
