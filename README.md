@@ -23,6 +23,10 @@ For now we're able to do lookups even when the main interface is down on each in
 
 Here comes dpinger in to play, which on certain thresholds (latency ms and loss %), runs a custom script that sets the metric + 1000 and then monitors for it to fall under acceptable levels, and set # metric to the original value. `dpinger_install.sh` and `health_check.sh`
 
+* Dpinger is now setup to avarage results over 60 seconds, it will lower the metric when avg loss -gt 15 and/or latency -gt 200ms. It does this right now with pings every 500ms
+
+* The sleep time of the script is 5 seconds and then will begin checking for improvements on the interface again
+
 ## Commands to verify workings unbound
 Notice the query time in the dig commands, if its a good hit and has a time of 0, it is served from cache.
 So to properly test DNS resolving either clear the cache or query a new domain that is not cached yet.
