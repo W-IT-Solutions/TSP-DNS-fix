@@ -11,12 +11,12 @@ When you browse websites you make dozens of DNS queries for different resources 
 Lots of these libraries are commonly used across multiple websites.
 Unbound will soon learn where those resources are and won't have to do a full lookup every time.
 
+
 # Problem
 When the main metric interface is down, by connOff.sh or LTE endpoint failure, the default routes for that interface are still in place but, obviously not working. 
 When not changing the metric of the failing interface, the system will use the IP setup on that interface for outgoing requests, thus will fail no matter what. 
 
-Its not possible to send traffic out all interfaces at once due to routing issues / ip conflicts on requests and replies.
-for this we'd need bonding, also an option though.
+Its not possible to send traffic out all interfaces at once, for this we'd need bonding, also an option though.
 
 ## Big picture solution
 For now we're able to do lookups even when the main interface is down on each interface that is up, that said;

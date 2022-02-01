@@ -99,6 +99,19 @@ get_interfaces(){
     done
 }
 
+################################ Hardcode outgoing interfaces in unbound config
+set_outgoing_interfaces_unbound() {
+    readarray -t interfaces < <(cat /tmp/interfaces)
+    for INTERFACE in "${interfaces[@]// /}" ; do 
+        IP=$(ip address show dev "$INTERFACE" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
+        if [ -z "$IP" ]; then
+            error "$(date) - Setup Unbound - No IP on $INTERFACE"
+        else
+            echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf
+        fi
+    done
+}
+
 ################################ Dynamic systemd script generator for dpinger interface monitor
 dpinger_systemd() {
 cat > /etc/systemd/system/health_check_"$i".service <<EOF && success "$(date) - dpinger_systemd - Dpinger systemd generated for $i" || error "$(date) - dpinger_systemd - Failed to generate Dpinger systemd config for $i"
@@ -140,7 +153,7 @@ header "Pre init $(date)"
 debug_mode
 root_check && success "$(date) - INIT - Root check ok"
 #health_check_script && success "$(date) - INIT - Health check script created!" || fatal "$(date) - INIT - Failed to create health check script"
-rm -rf /tmp/.script_lock_* && success "$(date) - $INTERFACE - Removed lock file" || error "$(date) - $INTERFACE - Failed to remove lock file"
+rm -rf /tmp/.script_lock_* && success "$(date) - Removed lock file" || error "$(date) - Failed to remove lock file"
 
 ################################ Update and upgrade
 header "Update & upgrade $(date)"
@@ -183,6 +196,13 @@ mkdir -p /var/scripts/interfaces && success "$(date) - Create DIRs - Scripts/Int
 ################################ Create services for the health check of each interface inside /var/scripts/dpinger/$interface.sh
 header "$(date) - Dpinger systemd generator"
 setup_dpinger
+
+################################ Set outgoing interfaces in unbound
+header "$(date) - Set Unbound outgoing interfaces"
+cat /dev/null > /etc/unbound/outgoing.conf && success "$(date) - Outgoing interfaces - Cleared"
+cat /dev/null > /etc/resolv.conf && success "$(date) - resolv.conf - Cleared"
+set_outgoing_interfaces_unbound
+echo "nameserver 127.0.0.1" >> /etc/resolv.conf && success "$(date) - Outgoing interfaces - 127.0.0.1 added"
 
 ################################  Misc
 header "$(date) - Misc"

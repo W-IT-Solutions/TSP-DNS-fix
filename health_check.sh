@@ -69,17 +69,16 @@ IP=$(ip address show dev "$INTERFACE" | grep inet | head -1 | awk '{printf "%s\n
 #GW='192.168.8.1'
 #NETWORK='192.168.8' # Leave OUT the last dot and octet 
 WAITSEC="10" # Loop time, every 10 seconds
-METRIC=$(route -n | grep 'UG' | grep "$INTERFACE" | awk '{printf "%s\n",$5}')
-octet=$(ip address show dev "$INTERFACE" | grep inet | awk -F "[/.]" '{print $4;}')
-tablenum=$(( $octet + 100 ))
+#METRIC=$(route -n | grep 'UG' | grep "$INTERFACE" | awk '{printf "%s\n",$5}')
+#octet=$(ip address show dev "$INTERFACE" | grep inet | awk -F "[/.]" '{print $4;}')
+#tablenum=$(( $octet + 100 ))
 LOSS="5"
 
 # Dpinger vars
-# CHECK OTHER VAR $1 FROM SYSTEMD DPINGER CMD
-dest_addr="$2"
-alarm_flag="$3"
-latency_avg="$4"
-loss_avg="$5"
+dest_addr="$4"
+alarm_flag="$5"
+latency_avg="$7"
+loss_avg="$8"
 
 # Check IP var
 if [ -n "$IP" ]; then
@@ -118,16 +117,14 @@ debug_mode
 root_check
 # Remove when verified
 header "$(date) - $INTERFACE - INIT - Use Dpinger variables: dest_addr $dest_addr alarm_flag $alarm_flag latency_avg $latency_avg loss_avg $loss_avg"
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 1 $1"
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 2 $2"
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 3 $3"
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 4 $4"
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 5 $5"
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 6 $6"
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 7 $7"
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 8 $8"
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 9 $9"
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 10 ${10}"
+#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 1 $1"
+#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 2 $2"
+#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 3 $3"
+#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 4 $4"
+#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 5 $5"
+#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 6 $6"
+#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 7 $7"
+#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 8 $8"
 
 ################################ Delete routes | only for reference
 #ip route delete default via "$GW" dev "$INTERFACE" src "$IP" && success "$(date) - $INTERFACE - Deleted routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to delete routes for $INTERFACE"
@@ -164,29 +161,48 @@ do
 	if ! [ -f /tmp/health_"$INTERFACE" ]; then
 		error "$(date) - $INTERFACE - Failed to read /tmp/health_$INTERFACE"
 	else
-		success "$(date) - $INTERFACE - Read /tmp/health_$INTERFACE: loss % is at: $CONNECTION"
+		success "$(date) - $INTERFACE - Read /tmp/health_$INTERFACE: IP: $IP loss % is at: $CONNECTION"
 	fi
 
 	if [ "$CONNECTION" == "0" ]; then
 		# If loss is 0% set original metric value back
-		ifmetric "$INTERFACE" "$METRIC" && success "$(date) - $INTERFACE - IFMETRIC set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
+		##ifmetric "$INTERFACE" "$METRIC" && success "$(date) - $INTERFACE - IFMETRIC set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
+		
+		if grep -q "$IP" /etc/unbound/outgoing.conf; then
+			warning "$(date) - $INTERFACE - Interface is present in /etc/unbound/outgoing.conf already. Moving on."
+		else
+			# Change to set unbound interfaces and reload
+			echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf
+			unbound-control dump_cache > /etc/unbound/cache.file && success "$(date) Backed up unbound cache to /etc/unbound/cache.file" || error "$(date) - Failed to backup unbound cache to /etc/unbound/cache.file"
+			unbound-control reload && success "$(date) - Reload unbound" || error "$(date) - Failed to reload unbound"
+			unbound-control load_cache < /etc/unbound/cache.file && success "$(date) - Loaded unbound cache from /etc/unbound/cache.file" || error "$(date) - Failed to load unbound cache from /etc/unbound/cache.file"
+		fi
 
 		# Abandon the loop.
 		success "$(date) - $INTERFACE - Break the loop"
 		break
+
 	elif [ "$CONNECTION" -gt "$LOSS" ]; then
 		error "$(date) - $INTERFACE - Loss % is still higher then threshold - CONNECTION -gt 5"
 
-		CURRENTMETRIC=$(route -n | grep 'UG' | grep "$INTERFACE" | awk '{printf "%s\n",$5}')
-		NEWMETRIC=$(( $tablenum + 1000 ))
-
-		if [ "$CURRENTMETRIC" == "$NEWMETRIC" ]; then
-			warning "$(date) - $INTERFACE - Metric already set to: 1${tablenum}"
-		else
-			# Set metric higher since we have loss or high latency
-			#/sbin/dhcpcd -m 1"${tablenum}" "$INTERFACE" && success "$(date) - $INTERFACE - DHCPCD Metric set to: 1${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 1${tablenum}"
-			ifmetric "$INTERFACE" 1"${tablenum}" && success "$(date) - $INTERFACE - IFMETRIC set to: 1${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 1${tablenum}"
+		# Change to set unbound interfaces and reload
+		if grep "$IP" /etc/unbound/outgoing.conf; then
+			sed -i "/$IP/d" /etc/unbound/outgoing.conf && success "$(date) - Removed outgoing interface $IP from /etc/unbound/outgoing.conf" || error "$(date) - Failed to removed outgoing interface $IP from /etc/unbound/outgoing.conf" || 
+			unbound-control dump_cache > /etc/unbound/cache.file && success "$(date) - Backed up unbound cache to /etc/unbound/cache.file" || error "$(date) - Failed to backup unbound cache to /etc/unbound/cache.file"
+			unbound-control reload && success "$(date) - Reload unbound" || error "$(date) - Failed to reload unbound"
+			unbound-control load_cache < /etc/unbound/cache.file && success "$(date) - Loaded unbound cache from /etc/unbound/cache.file" || error "$(date) - Failed to load unbound cache from /etc/unbound/cache.file"
 		fi
+
+		#CURRENTMETRIC=$(route -n | grep 'UG' | grep "$INTERFACE" | awk '{printf "%s\n",$5}')
+		#NEWMETRIC=$(( $tablenum + 1000 ))
+
+		#if [ "$CURRENTMETRIC" == "$NEWMETRIC" ]; then
+		#	warning "$(date) - $INTERFACE - Metric already set to: 1${tablenum}"
+		#else
+		#	# Set metric higher since we have loss or high latency
+		#	#/sbin/dhcpcd -m 1"${tablenum}" "$INTERFACE" && success "$(date) - $INTERFACE - DHCPCD Metric set to: 1${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 1${tablenum}"
+		#	ifmetric "$INTERFACE" 1"${tablenum}" && success "$(date) - $INTERFACE - IFMETRIC set to: 1${tablenum}" || fatal "$(date) - $INTERFACE - Failed to set metric to: 1${tablenum}"
+		#fi
 	fi
 
 	header "$(date) - $INTERFACE - Eat, sleep, bash, repeat"

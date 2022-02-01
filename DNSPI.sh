@@ -10,6 +10,18 @@
 # Unbound will soon learn where those resources are and won't have to do a full lookup every time.
 #
 # Final speed tweaks will be added soon and this message will be removed.
+#
+# i can also make it so that unbound will only use working interfaces - verified works! just have to automate it
+#
+# Create test script dig
+# load_cache & dump_cache
+#
+# 
+
+
+something is settings different DNS servers in /etc/resolv.conf
+add cache dump every 15 minutes
+add cache load @reboot
 
 ################################ Logger
 INTERACTIVE="0" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
@@ -108,6 +120,7 @@ set_outgoing_interfaces_unbound() {
             error "$(date) - Setup Unbound - No IP on $INTERFACE"
         else
             echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf
+            echo "nameserver $IP" >> /etc/resolv.conf
         fi
     done
 }
@@ -122,7 +135,7 @@ header "Update & upgrade $(date)"
 apt update && success "$(date) - update - Updated" || fatal "$(date) - update - Failed to update"
 apt full-upgrade -y && success "$(date) - full-upgrade - Upgraded" || fatal "$(date) - full-upgrade - Failed to upgrade"
 header "Dependencies $(date)"
-apt install -y unbound dnsutils curl && success "$(date) - Dependancies - Installed" || fatal "$(date) - Dependancies - Failed to install"
+apt install -y unbound dnsutils curl redis-server && success "$(date) - Dependancies - Installed" || fatal "$(date) - Dependancies - Failed to install"
 
 ################################ Get all valid LTE interfaces
 header "$(date) - Get all interfaces"
@@ -131,6 +144,7 @@ get_interfaces
 
 ################################ Create scripts dir
 mkdir -p /var/scripts && success "$(date) - Create DIRs - Scripts dir created"
+mkdir -p /var/scripts/ResolvConfBackup && success "$(date) - Create DIRs - Scripts/ResolvConfBackup dir created"
 
 ################################ Fix: dhcpcd[5131]: script_runreason: control_queue: No buffer space available
 if [ -f /proc/sys/net/core/wmem_max ]; then
@@ -153,21 +167,95 @@ MulticastDNS=no
 DNSStubListener=no
 EOF
 
-systemctl restart systemd-resolved.service && success "$(date) - Resolved - Restarted service" || fatal "$(date) - Resolved - Failed to restart service"
+# systemctl restart systemd-resolved.service && success "$(date) - Resolved - Restarted service" || fatal "$(date) - Resolved - Failed to restart service"
+systemctl stop systemd-resolved.service && success "$(date) - Resolved - Stopped service" || fatal "$(date) - Resolved - Failed to stop service"
+systemctl disable systemd-resolved.service && success "$(date) - Resolved - Disabled service" || fatal "$(date) - Resolved - Failed to disable service"
 
 ################################  Dhcpcd.conf
 #sed -i '/static routers=192.168.8.1/a static domain_name_servers=127.0.0.1' /etc/dhcpcd.conf
 #sed -i '/static domain_name_servers=127.0.0.1/a \ ' /etc/dhcpcd.conf
 
-################################ Check resolv.conf, needs to be updated by resolved automagically
-if grep -qrnw -e 'nameserver 127.0.0.1' /etc/resolv.conf ; then 
-    warning "$(date) - Resolvconf - 127.0.0.1 is already present in /etc/resolv.conf"  
-else 
-    mv /etc/resolvconf.conf /etc/resolvconf.conf.backup."$DATE"
-    echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf"
-    #echo "nameserver 1.1.1.1" > /etc/resolv.conf
-    crontab -l | { cat; echo '* * * * * echo "nameserver 127.0.0.1" > /etc/resolv.conf'; } | crontab - && success "$(date) - Resolvconf - Set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf"
-fi
+################################ Setup Redis cache for unbound DNS entries
+cat > /etc/redis/redis.conf <<EOF && success "$(date) - Setup Unbound - Wrote redis config" || fatal "$(date) - Setup Unbound - Failed to write redis config"
+# Redis configuration file example.
+#
+# Note that in order to read the configuration file, Redis must be
+# started with the file path as first argument:
+#
+# ./redis-server /path/to/redis.conf
+
+# TCP listen() backlog.
+#
+# In high requests-per-second environments you need an high backlog in order
+# to avoid slow clients connections issues. Note that the Linux kernel
+# will silently truncate it to the value of /proc/sys/net/core/somaxconn so
+# make sure to raise both the value of somaxconn and tcp_max_syn_backlog
+# in order to get the desired effect.
+tcp-backlog 511
+
+bind 127.0.0.1
+protected-mode yes
+port 6379
+# unixsocket /var/run/redis/redis-server.sock
+# unixsocketperm 700
+tcp-keepalive 300
+supervised no
+daemonize yes
+rdb-save-incremental-fsync yes
+aof-rewrite-incremental-fsync yes
+dynamic-hz yes
+hz 50
+client-output-buffer-limit normal 0 0 0
+client-output-buffer-limit replica 256mb 64mb 60
+client-output-buffer-limit pubsub 32mb 8mb 60
+activerehashing yes
+stream-node-max-bytes 4096
+stream-node-max-entries 100
+zset-max-ziplist-entries 128
+zset-max-ziplist-value 64
+hll-sparse-max-bytes 3000
+set-max-intset-entries 512
+list-compress-depth 0
+list-max-ziplist-size -2
+hash-max-ziplist-entries 512
+hash-max-ziplist-value 64
+notify-keyspace-events ""
+latency-monitor-threshold 0
+slowlog-max-len 128
+slowlog-log-slower-than 10000
+lua-time-limit 5000
+aof-use-rdb-preamble yes
+aof-load-truncated yes
+auto-aof-rewrite-percentage 100
+auto-aof-rewrite-min-size 64mb
+no-appendfsync-on-rewrite no
+appendfsync everysec
+appendfilename "appendonly.aof"
+appendonly no
+lazyfree-lazy-eviction no
+lazyfree-lazy-expire no
+lazyfree-lazy-server-del no
+replica-lazy-flush no
+repl-disable-tcp-nodelay no
+repl-diskless-sync no
+repl-diskless-sync-delay 5
+replica-read-only yes
+replica-serve-stale-data yes
+dir /var/lib/redis
+dbfilename dump.rdb
+rdbchecksum yes
+rdbcompression yes
+stop-writes-on-bgsave-error yes
+save 900 1
+save 300 10
+save 60 10000
+databases 16
+logfile /var/log/redis/redis-server.log
+loglevel notice
+EOF
+
+systemctl restart redis-server.service && success "$(date) - Setup Redis - Restarted service" || error "$(date) - Setup  Redis - Failed to restart service"
+systemctl restart redis.service && success "$(date) - Setup Redis - Restarted service" || error "$(date) - Setup  Redis - Failed to restart service"
 
 ################################ Setup Unbound
 # Setup root.hint grab cronjob
@@ -191,12 +279,22 @@ fi
 
 # Unbound
 cat > /etc/unbound/unbound.conf <<EOF && success "$(date) - Setup Unbound - Wrote unbound config" || fatal "$(date) - Setup Unbound - Failed to write unbound config"
-server:
+###########################################################################
+    ###########################################################################
+    # Redis cache
+    ###########################################################################
+cachedb:
+    backend: "redis"
+    redis-server-host: 127.0.0.1
+    redis-server-port: 6379
+    redis-timeout: 100
+
 server:
     ###########################################################################
     # BASIC SETTINGS
     ###########################################################################
     domain-insecure: "tlvproxy.thesocialproxy.com"
+    # private-domain: 
 
     # Time to live maximum for RRsets and messages in the cache. If the maximum
     # kicks in, responses to clients still get decrementing TTLs based on the
@@ -245,6 +343,19 @@ server:
     # Turn off validator module for DNSSEC
     module-config: "iterator"
 
+    infra-cache-min-rtt: 500
+    infra-cache-numhosts: 100000
+    do-ip4: yes
+    do-udp: yes
+    do-tcp: yes
+
+    # May be set to yes if you have IPv6 connectivity
+    do-ip6: no
+
+    # You want to leave this to no unless you have *native* IPv6. With 6to4 and
+    # Terredo tunnels your web browser should favor IPv4 for the same reasons
+    prefer-ip6: no
+
     ###########################################################################
     # LOGGING
     ###########################################################################
@@ -259,7 +370,7 @@ server:
     log-replies: no
 
     # Do not print log lines that say why queries return SERVFAIL to clients
-    log-servfail: yes
+    log-servfail: no
 
     # Further limit logging
     # logfile: /dev/null
@@ -269,7 +380,7 @@ server:
     use-syslog: yes
 
     # Use this only when you downloaded the list of primary root servers!
-##    root-hints: "root.hints"
+    root-hints: "root.hints"
 
     ###########################################################################
     # PRIVACY SETTINGS
@@ -282,7 +393,7 @@ server:
     # decreases latency and resource utilization on both authoritative and
     # recursive servers, and increases privacy. Also, it may help increase
     # resilience to certain DoS attacks in some circumstances.
-    aggressive-nsec: yes
+#    aggressive-nsec: yes
 
     # Extra delay for timeouted UDP ports before they are closed, in msec.
     # This prevents very delayed answer packets from the upstream (recursive)
@@ -290,14 +401,14 @@ server:
     # close-port counters, with eg. 1500 msec. When timeouts happen you need
     # extra sockets, it checks the ID and remote IP of packets, and unwanted
     # packets are added to the unwanted packet counter.
-    delay-close: 3000
+    delay-close: 10000
 
     # Prevent the unbound server from forking into the background as a daemon
     # do-daemonize: no
 
     # Add localhost to the do-not-query-address list.
     do-not-query-localhost: no
-
+#
     # Number  of  bytes size of the aggressive negative cache.
     neg-cache-size: 4M
 
@@ -313,8 +424,8 @@ server:
     access-control: 192.168.0.0/16 allow
     access-control: 172.16.0.0/12 allow
     access-control: 10.0.0.0/8 allow
-    # access-control: fc00::/7 allow
-    # access-control: ::1/128 allow
+    access-control: fc00::/7 allow
+    access-control: ::1/128 allow
 
     # File with trust anchor for  one  zone, which is tracked with RFC5011
     # probes.
@@ -373,9 +484,9 @@ server:
     private-address: 172.16.0.0/12
     private-address: 192.168.0.0/16
     private-address: 169.254.0.0/16
-    # private-address: fd00::/8
-    # private-address: fe80::/10
-    # private-address: ::ffff:0:0/96
+    private-address: fd00::/8
+    private-address: fe80::/10
+    private-address: ::ffff:0:0/96
 
     # Enable ratelimiting of queries (per second) sent to nameserver for
     # performing recursion. More queries are turned away with an error
@@ -392,21 +503,21 @@ server:
     # When it reaches the threshold, a defensive action of clearing the rrset
     # and message caches is taken, hopefully flushing away any poison.
     # Unbound suggests a value of 10 million.
-    unwanted-reply-threshold: 10000
+    unwanted-reply-threshold: 500000
 
     # Use 0x20-encoded random bits in the query to foil spoof attempts. This
     # perturbs the lowercase and uppercase of query names sent to authority
     # servers and checks if the reply still has the correct casing.
     # This feature is an experimental implementation of draft dns-0x20.
     # Experimental option.
-    use-caps-for-id: yes
+#    use-caps-for-id: yes
 
     # Help protect users that rely on this validator for authentication from
     # potentially bad data in the additional section. Instruct the validator to
     # remove data from the additional section of secure messages that are not
     # signed properly. Messages that are insecure, bogus, indeterminate or
     # unchecked are not affected.
-    val-clean-additional: yes
+    # val-clean-additional: yes
 
     ###########################################################################
     # PERFORMANCE SETTINGS
@@ -415,12 +526,12 @@ server:
 
     # Number of slabs in the infrastructure cache. Slabs reduce lock contention
     # by threads. Must be set to a power of 2.
-    infra-cache-slabs: 4
+    infra-cache-slabs: 2
 
     # Number of slabs in the key cache. Slabs reduce lock contention by
     # threads. Must be set to a power of 2. Setting (close) to the number
     # of cpus is a reasonable guess.
-    key-cache-slabs: 4
+    key-cache-slabs: 2
 
     # Number  of  bytes  size  of  the  message  cache.
     # Unbound recommendation is to Use roughly twice as much rrset cache memory
@@ -430,7 +541,7 @@ server:
     # Number of slabs in the message cache. Slabs reduce lock contention by
     # threads. Must be set to a power of 2. Setting (close) to the number of
     # cpus is a reasonable guess.
-    msg-cache-slabs: 4
+    msg-cache-slabs: 2
 
     # The number of queries that every thread will service simultaneously. If
     # more queries arrive that need servicing, and no queries can be jostled
@@ -479,6 +590,8 @@ server:
     # the response without waiting for the actual resolution to finish. The
     # actual resolution answer ends up in the cache later on.
     serve-expired: yes
+    serve-expired-ttl: 0
+    serve-expired-ttl-reset: yes
 
     # Open dedicated listening sockets for incoming queries for each thread and
     # try to set the SO_REUSEPORT socket option on each socket. May distribute
@@ -510,27 +623,32 @@ server:
         #forward-addr: 2606:4700:4700::1111@853#cloudflare-dns.com
         #forward-addr: 2606:4700:4700::1001@853#cloudflare-dns.com
 
-        # CleanBrowsing
-        # forward-addr: 185.228.168.9@853#security-filter-dns.cleanbrowsing.org
-        # forward-addr: 185.228.169.9@853#security-filter-dns.cleanbrowsing.org
-        # forward-addr: 2a0d:2a00:1::2@853#security-filter-dns.cleanbrowsing.org
-        # forward-addr: 2a0d:2a00:2::2@853#security-filter-dns.cleanbrowsing.org
-
         # Quad9
         forward-addr: 9.9.9.9@853#dns.quad9.net
         forward-addr: 149.112.112.112@853#dns.quad9.net
         # forward-addr: 2620:fe::fe@853#dns.quad9.net
         # forward-addr: 2620:fe::9@853#dns.quad9.net
 
+        # Google
+        forward-addr: 8.8.8.8@853#dns.google
+        forward-addr: 8.8.4.4@853#dns.google
+        #forward-addr: 2001:4860:4860::8888 @853#dns.google
+        #forward-addr: 2001:4860:4860::8844@853#dns.google
+
         # getdnsapi.net
-        # forward-addr: 185.49.141.37@853#getdnsapi.net
-        # forward-addr: 2a04:b900:0:100::37@853#getdnsapi.net
+        forward-addr: 185.49.141.37@853#getdnsapi.net
+        #forward-addr: 2a04:b900:0:100::37@853#getdnsapi.net
 
         # Surfnet
-        # forward-addr: 145.100.185.15@853#dnsovertls.sinodun.com
-        # forward-addr: 145.100.185.16@853#dnsovertls1.sinodun.com
-        # forward-addr: 2001:610:1:40ba:145:100:185:15@853#dnsovertls.sinodun.com
-        # forward-addr: 2001:610:1:40ba:145:100:185:16@853#dnsovertls1.sinodun.com
+        forward-addr: 145.100.185.15@853#dnsovertls.sinodun.com
+        forward-addr: 145.100.185.16@853#dnsovertls1.sinodun.com
+        forward-addr: 145.100.185.17@853#dnsovertls2.sinodun.com
+        forward-addr: 145.100.185.18@853#dnsovertls3.sinodun.com
+	    #forward-addr: 2001:610:1:40ba:145:100:185:15@853#dnsovertls.sinodun.com
+        #forward-addr: 2001:610:1:40ba:145:100:185:16@853#dnsovertls1.sinodun.com
+
+remote-control:
+    control-enable: yes
 EOF
 
 # Add all available NICs as outbound interface for unbound
@@ -543,19 +661,36 @@ set_outgoing_interfaces_unbound
 systemctl enable unbound.service && success "$(date) - Setup Unbound - Enabled service" || fatal "$(date) - Setup Unbound - Failed to enable service"
 systemctl restart unbound.service && success "$(date) - Setup Unbound - Restarted service" || fatal "$(date) - Setup Unbound - Failed to restart service"
 
+################################ Check resolv.conf, needs to be updated by resolved automagically
+# Remove this hook file since it overrides /etc/resolv.conf with rubbish
+if [ -f /etc/dhcp/dhclient-enter-hooks.d/resolvconf  ]; then
+    mv /etc/dhcp/dhclient-enter-hooks.d/resolvconf /var/scripts/ResolvConfBackup/resolvconf && success "$(date) - Resolvconf - Removed dhcp resolvconf hook" || warning "$(date) - Resolvconf - Failed to remove dhcp resolvconf hook"
+fi
+
+if [ -f /lib/dhcpcd/dhcpcd-hooks/20-resolv.conf ]; then
+    mv /lib/dhcpcd/dhcpcd-hooks/20-resolv.conf /var/scripts/ResolvConfBackup/20-resolv.conf && success "$(date) - Resolvconf - Removed dhcpcd resolvconf hook" || warning "$(date) - Resolvconf - Failed to remove dhcpcd resolvconf hook"
+fi
+
+# Just to be safe
+#crontab -l | { cat; echo '* * * * * echo "nameserver 127.0.0.1" > /etc/resolv.conf'; } | crontab - && success "$(date) - Resolvconf - Set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf"
+mv /etc/resolv.conf /etc/resolv.conf.backup."$DATE"
+echo "nameserver 127.0.0.1" >> /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf"
+# Write protect /etc/resolv.conf
+chattr +i /etc/resolv.conf && success "$(date) - Setup Unbound - Write protect set on /etc/resolv.conf" || fatal "$(date) - Setup Unbound - Failed to to set write protect on /etc/resolv.conf"
+
+
 ################################ DNS check loopback -> unbound cache/forward
 # Clear current DNS cache
-systemd-resolve --flush-caches && success "$(date) - DNS Check - Flush DNS" || fatal "$(date) - DNS Check - Flushing DNS failed"
+unbound-control flush && success "$(date) - DNS Check - Flush DNS" || fatal "$(date) - DNS Check - Flushing DNS failed"
 
-if host facebook.com 127.0.0.1; then
-    success "$(date) - DNS Check - DNS is working via 127.0.0.1 to unbound!"
+if host facebook.com; then
+    success "$(date) - DNS Check - DNS is working via unbound!"
 else
-    fatal "$(date) - DNS Check - DNS is not working via 127.0.0.1 to unbound!"
+    fatal "$(date) - DNS Check - DNS is not working via unbound!"
 fi
 
 ################################  Misc
 header "$(date) - Misc"
-service unbound* restart
 
 if [ "$APTIPV4" == "ON" ]; then
     echo 'Acquire::ForceIPv4 “true”;' > /etc/apt/apt.conf.d/99force-ipv4 && success "$(date) - Misc - Force APT to use IPV4" || fatal "$(date) - Misc - Failed to force APT to use IPV4"
