@@ -176,7 +176,13 @@ systemctl disable systemd-resolved.service && success "$(date) - Resolved - Disa
 #sed -i '/static domain_name_servers=127.0.0.1/a \ ' /etc/dhcpcd.conf
 
 ################################ Setup Redis cache for unbound DNS entries
-cat > /etc/redis/redis.conf <<EOF && success "$(date) - Setup Unbound - Wrote redis config" || fatal "$(date) - Setup Unbound - Failed to write redis config"
+if ! crontab -l | grep "transparent_hugepage"; then
+    # Cronjob check
+        crontab -l | { cat; echo '@reboot /bin/echo never > /sys/kernel/mm/transparent_hugepage/enabled'; } | crontab - && success "$(date) - Redis - Set crontab never > /sys/kernel/mm/transparent_hugepage/enabled" || fatal "$(date) - Redis- Failed to set cronjob never > /sys/kernel/mm/transparent_hugepage/enabled"
+        /bin/echo never > /sys/kernel/mm/transparent_hugepage/enabled
+fi
+
+cat > /etc/redis/redis.conf <<EOF && success "$(date) - Redis - Wrote redis config" || fatal "$(date) - Redis - Failed to write redis config"
 # Redis configuration file example.
 #
 # Note that in order to read the configuration file, Redis must be
