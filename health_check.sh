@@ -48,7 +48,7 @@ fatal() {
 
 ################################ Check / Set lock
 if [ -f /tmp/.script_lock_"$1" ]; then
-    	error "$(date) - $1 - Script is already running"
+    	warning "$(date) - $1 - Script is already running"
 	exit 1
 else
    	 touch /tmp/.script_lock_"$1" && success "$(date) - $1 - Created /tmp/.script_lock_$1" || fatal "$(date) - $1 - Failed to create /tmp/.script_lock_$1"
@@ -183,7 +183,7 @@ do
 		break
 
 	elif [ "$CONNECTION" -gt "$LOSS" ]; then
-		error "$(date) - $INTERFACE - Loss % is still higher then threshold - CONNECTION -gt 5"
+		error "$(date) - $INTERFACE - Loss % is still higher then threshold - $CONNECTION -gt 5"
 
 		# Change to set unbound interfaces and reload
 		if grep "$IP" /etc/unbound/outgoing.conf; then
@@ -215,7 +215,7 @@ if [ -f /tmp/.script_lock_"$INTERFACE" ]; then
 fi
 
 # End of script
-success "$(date) - Script finished - $COUNTER Warning(s) and / or error(s)"
+success "$(date) - $INTERFACE - Script finished - $COUNTER Warning(s) and / or error(s)"
 #cat /var/log/health_check_script_errors_warnings.log
 
 exit 0

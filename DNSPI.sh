@@ -9,20 +9,6 @@
 # Lots of these libraries are commonly used across multiple websites.
 # Unbound will soon learn where those resources are and won't have to do a full lookup every time.
 #
-# Final speed tweaks will be added soon and this message will be removed.
-#
-# i can also make it so that unbound will only use working interfaces - verified works! just have to automate it
-#
-# Create test script dig
-# load_cache & dump_cache
-#
-# 
-
-
-something is settings different DNS servers in /etc/resolv.conf
-add cache dump every 15 minutes
-add cache load @reboot
-
 ################################ Logger
 INTERACTIVE="0" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
 if ! [ $INTERACTIVE == 1 ]; then 
@@ -286,9 +272,8 @@ fi
 # Unbound
 cat > /etc/unbound/unbound.conf <<EOF && success "$(date) - Setup Unbound - Wrote unbound config" || fatal "$(date) - Setup Unbound - Failed to write unbound config"
 ###########################################################################
-    ###########################################################################
-    # Redis cache
-    ###########################################################################
+# Redis cache
+###########################################################################
 cachedb:
     backend: "redis"
     redis-server-host: 127.0.0.1
@@ -296,9 +281,9 @@ cachedb:
     redis-timeout: 100
 
 server:
-    ###########################################################################
-    # BASIC SETTINGS
-    ###########################################################################
+###########################################################################
+# BASIC SETTINGS
+###########################################################################
     domain-insecure: "tlvproxy.thesocialproxy.com"
     # private-domain: 
 
@@ -351,6 +336,7 @@ server:
 
     infra-cache-min-rtt: 500
     infra-cache-numhosts: 100000
+
     do-ip4: yes
     do-udp: yes
     do-tcp: yes
@@ -399,7 +385,7 @@ server:
     # decreases latency and resource utilization on both authoritative and
     # recursive servers, and increases privacy. Also, it may help increase
     # resilience to certain DoS attacks in some circumstances.
-#    aggressive-nsec: yes
+    # aggressive-nsec: yes
 
     # Extra delay for timeouted UDP ports before they are closed, in msec.
     # This prevents very delayed answer packets from the upstream (recursive)
@@ -414,7 +400,7 @@ server:
 
     # Add localhost to the do-not-query-address list.
     do-not-query-localhost: no
-#
+
     # Number  of  bytes size of the aggressive negative cache.
     neg-cache-size: 4M
 
@@ -516,7 +502,7 @@ server:
     # servers and checks if the reply still has the correct casing.
     # This feature is an experimental implementation of draft dns-0x20.
     # Experimental option.
-#    use-caps-for-id: yes
+    # use-caps-for-id: yes
 
     # Help protect users that rely on this validator for authentication from
     # potentially bad data in the additional section. Instruct the validator to
