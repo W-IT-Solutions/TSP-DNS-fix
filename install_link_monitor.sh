@@ -27,7 +27,7 @@ DEBUG="0" # 1 = on / 0 = off
 MAINETHNIC="enp0s31f6" # Interface to ignore, please adjust, should be different on each system
 #TIME="10" # 10 Seconds measure period for dpinger
 LOSS="15" # Loss % threshold
-LATENCY="200m" # latency threshold in ms, use only m as in NUMBERm and not NUMBERms in var.
+#LATENCY="200m" # latency threshold in ms, use only m as in NUMBERm and not NUMBERms in var.
 # Static
 #DATE=$(date +%d-%b-%Y-%H%M)
 COUNTER="0"
@@ -121,7 +121,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/sbin/dpinger -f -S -i "dpinger $i" -R -o "/tmp/health_$i" -D $LATENCY -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash /var/scripts/health_check.sh $i"
+ExecStart=/sbin/dpinger -f -S -i "dpinger $i" -R -o "/tmp/health_$i" -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash /var/scripts/health_check.sh $i"
 Restart=on-failure
 StartLimitBurst=2
 # Restart, but not more than once every 10 minutes
@@ -131,6 +131,7 @@ StartLimitInterval=30
 [Install]
 WantedBy=multi-user.target
 EOF
+# -D $LATENCY
 
 # Enable and start
 systemctl -q stop health_check_"$i".service || true && success "$(date) - Stopped health_check_$i.service - Ok" 
@@ -203,6 +204,7 @@ cat /dev/null > /etc/unbound/outgoing.conf && success "$(date) - Outgoing interf
 cat /dev/null > /etc/resolv.conf && success "$(date) - resolv.conf - Cleared"
 set_outgoing_interfaces_unbound
 echo "nameserver 127.0.0.1" >> /etc/resolv.conf && success "$(date) - Outgoing interfaces - 127.0.0.1 added"
+unbound-control reload 
 
 ################################  Misc
 header "$(date) - Misc"
