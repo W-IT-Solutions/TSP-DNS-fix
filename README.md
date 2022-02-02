@@ -18,14 +18,11 @@ When not changing the metric of the failing interface, the system will use the I
 
 Its not possible to send traffic out all interfaces at once, for this we'd need bonding, also an option though.
 
-## Big picture solution
-For now we're able to do lookups even when the main interface is down on each interface that is up, that said;
+## Solution
+For now we're able to do lookups even when the main interface is down on each interface that is up.
+we monitor the interface state with dpinger which writes the values and a systemd script checks those and adds or removes outgoing-interfaces from unbound.conf automatically based on link status. End result, always a working DNS resolver.
 
-Here comes dpinger in to play, which on certain thresholds (latency ms and loss %), runs a custom script that sets the metric + 1000 and then monitors for it to fall under acceptable levels, and set # metric to the original value. `dpinger_install.sh` and `health_check.sh`
-
-* Dpinger is now setup to avarage results over 60 seconds, it will lower the metric when avg loss -gt 15 and/or latency -gt 200ms. It does this right now with pings every 500ms
-
-* The sleep time of the script is 5 seconds and then will begin checking for improvements on the interface again
+In order have a connection again on the file system when the main interface is down, we can use dpinger and the same script to add (+1000) metric to interfaces that are down. In turn when the interface is up deduct (-1000) from the metric and the interface is add to the 'working interface pool' again.
 
 ## Commands to verify workings unbound
 Notice the query time in the dig commands, if its a good hit and has a time of 0, it is served from cache.
@@ -35,6 +32,10 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 
 ### Make query to unbound that in turn tries all available interfaces
 `dig -p 53 facebook.com @127.0.0.1`
+
+## Flush unbound cache
+`unbound-control flush`
+`unbound-control flush domain.com`
 
 # Download the script, inspect it, adjust variable's and run
 `wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/install.sh`
