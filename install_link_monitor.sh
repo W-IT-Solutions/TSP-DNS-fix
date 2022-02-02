@@ -49,20 +49,20 @@ success() {
 }
 warning() {
 	/bin/echo -e "${IYellow} $* ${Color_Off}" >&2
-    	/bin/echo -e "${IYellow} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log 
-    	COUNTER=$((COUNTER+1))       
+    /bin/echo -e "${IYellow} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log 
+    COUNTER=$((COUNTER+1))       
 }
 error() {
 	/bin/echo -e "${IRed} $* ${Color_Off}" >&2
   	/bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log
-    	COUNTER=$((COUNTER+1))
+    COUNTER=$((COUNTER+1))
 }
 header() {
 	/bin/echo -e "${IBlue} $* ${Color_Off}" >&2
 }
 fatal() {
 	/bin/echo -e "${IRed} $* ${Color_Off}" >&2
-    	/bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log    
+    /bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log    
 	exit 1
 }
 
@@ -92,7 +92,7 @@ debug_mode() {
 cat /dev/null > /var/log/health_check_script_errors_warnings.log && success "$(date) - INIT - Cleaned error/warning log" || error "$(date) - INIT - Failed to clean error/wrning log"
 
 ################################ Get all interfaces to use (excluding tun tap etc)
-get_interfaces(){
+get_interfaces() {
     readarray -t interfaces < <(ip l | grep enp | grep -v "$MAINETHNIC" |  awk '{printf "%s\n",$2}' | sed 's/://g' | sed -r '/^\s*$/d' | cut -f1 -d"@")
     for i in "${interfaces[@]// /}" ; do 
         echo "$i" >> /tmp/interfaces && success "$(date) - get_interfaces - Found interface: $i"
@@ -124,9 +124,8 @@ Type=simple
 ExecStart=/sbin/dpinger -f -S -i "dpinger $i" -R -o "/tmp/health_$i" -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash /var/scripts/health_check.sh $i"
 Restart=on-failure
 StartLimitBurst=2
-# Restart, but not more than once every 10 minutes
-#StartLimitInterval=600
-StartLimitInterval=30
+# Restart, but not more than once every minute
+StartLimitInterval=60
 
 [Install]
 WantedBy=multi-user.target
@@ -154,7 +153,7 @@ header "Pre init $(date)"
 debug_mode
 root_check && success "$(date) - INIT - Root check ok"
 #health_check_script && success "$(date) - INIT - Health check script created!" || fatal "$(date) - INIT - Failed to create health check script"
-rm -rf /tmp/.script_lock_* && success "$(date) - Removed lock file" || error "$(date) - Failed to remove lock file"
+find /tmp -type -f -iname "script_lock" -delete && success "$(date) - Removed lock file" || error "$(date) - Failed to remove lock file"
 
 ################################ Update and upgrade
 header "Update & upgrade $(date)"

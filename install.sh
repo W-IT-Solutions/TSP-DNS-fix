@@ -9,24 +9,38 @@
 # Lots of these libraries are commonly used across multiple websites.
 # Unbound will soon learn where those resources are and won't have to do a full lookup every time.
 #
-################################ Logger
+# On the side this will also install systemd scripts for each interface to use for monitoring the LTE endpoint link state
+# Since the system with no MAIN Ethernet (or with for that matter) land line is not automatically switching based upon interface health
+# Therefore if interface is really down, remove it from unbound's 'outgoing-interface' config and reload. While preserving the cache (plus extra dump in redis for persistant cache)
+###############################################################################################################
+# LOGGER                                                                                                      #
+###############################################################################################################
 INTERACTIVE="0" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
 if ! [ $INTERACTIVE == 1 ]; then 
-    LOGFILE="/var/log/DNSPI.log" # Log file
+
+    LOGFILE="/var/log/DNS_fix_install.log" # Log file
     exec 3>&1 4>&2
     trap 'exec 2>&4 1>&3' 0 1 2 3 15 RETURN
     exec 1>>"$LOGFILE" 2>&1
 fi
+cat /dev/null > /var/log/health_check_script_errors_warnings.log && success "$(date) - INIT - Cleaned error/warning log" || error "$(date) - INIT - Failed to clean error/wrning log"
 
-################################ Stock snippits
+###############################################################################################################
+# STOCK SNIPPITS                                                                                              #
+###############################################################################################################
 # Log line
 # && success "$(date) -  - " || fatal "$(date) -  - "
 
-################################ Variables and functions
+###############################################################################################################
+# VARIABLES                                                                                                   #
+###############################################################################################################
 # Dynamic
 DEBUG="1" # 1 = on / 0 = off
 MAINETHNIC="enp0s31f6" # Interface to ignore, please adjust, should be different on each system
 APTIPV4="1" # Force APT to use IPV4, needed as IPV6 DNS lookups on LTE seem to fail (Note that IPV4 will still resolve both ipv4 and ipv6 addresses)
+#TIME="10" # 10 Seconds measure period for dpinger
+LOSS="15" # Loss % threshold
+#LATENCY="200m" # latency threshold in ms, use only m as in NUMBERm and not NUMBERms in var.
 # Static
 DATE=$(date +%d-%b-%Y-%H%M)
 COUNTER="0"
@@ -34,7 +48,9 @@ MAINNIC=$(route -n | head -3 | tail -1 | awk '{printf "%s\n",$8}')
 MAINIP=$(ip address show dev "$MAINNIC" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
 SYSCTL=$(grep 'net.core.rmem_max' /etc/sysctl.conf)
 
-################################ CMD line output
+###############################################################################################################
+# CMD LINE OUTPUT                                                                                             #
+###############################################################################################################
 print_text_in_color() {
 /usr/bin/printf "%b%s%b\n" "$1" "$2" "$Color_Off"
 }
@@ -66,7 +82,9 @@ fatal() {
 	exit 1
 }
 
-################################ Root check
+###############################################################################################################
+# ROOT CHECK                                                                                                  #
+###############################################################################################################
 is_root() {
 	if [[ "$EUID" -ne 0 ]];	then
 		return 1
@@ -81,15 +99,18 @@ root_check() {
 	fi
 }
 
-################################ Debug mode, script stops when a commands errors out
+###############################################################################################################
+# DEBUG                                                                                                       #
+###############################################################################################################
 debug_mode() {
 	if [ "$DEBUG" -eq 1 ]; then
 		set -ex && success "$(date) - INIT - Debug set" || error "$(date) - INIT - Setting debug failed"
 	fi
 }
 
-################################ Get all interfaces to use (excluding tun tap etc)
-# ip l | awk -F ":" '/^[0-9]+:/{dev=$2 ; if ( dev !~ /^ lo$/) {print $2}}'
+###############################################################################################################
+# GET ALL ENP* INTERFACES EXCLUDING $MAINETHNIC AND LOOPBACK                                                  #
+###############################################################################################################
 get_interfaces() {
     readarray -t interfaces < <(ip l | grep enp | grep -v "$MAINETHNIC" |  awk '{printf "%s\n",$2}' | sed 's/://g' | sed -r '/^\s*$/d' | cut -f1 -d"@")
     for i in "${interfaces[@]// /}" ; do 
@@ -97,7 +118,9 @@ get_interfaces() {
     done
 }
 
-################################ Hardcode outgoing interfaces in unbound config
+###############################################################################################################
+# SET OUTGOING INTERFACE >> UNBOUND.CONF                                                                      #
+###############################################################################################################
 set_outgoing_interfaces_unbound() {
     readarray -t interfaces < <(cat /tmp/interfaces)
     for INTERFACE in "${interfaces[@]// /}" ; do 
@@ -111,28 +134,103 @@ set_outgoing_interfaces_unbound() {
     done
 }
 
-################################ Pre init
-header "Pre init $(date)"
+###############################################################################################################
+# GENERATE SYSTEMD SCRIPT FOR EACH DPINGER INTERFACE MONITOR                                                  #
+###############################################################################################################
+dpinger_systemd() {
+cat > /etc/systemd/system/health_check_"$i".service <<EOF && success "$(date) - dpinger_systemd - Dpinger systemd generated for $i" || error "$(date) - dpinger_systemd - Failed to generate Dpinger systemd config for $i"
+[Unit]
+Description=Health check $i
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/sbin/dpinger -f -S -i "dpinger $i" -R -o "/tmp/health_$i" -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash /var/scripts/health_check.sh $i"
+Restart=on-failure
+StartLimitBurst=2
+# Restart, but not more than once every minute
+StartLimitInterval=60
+
+[Install]
+WantedBy=multi-user.target
+EOF
+# -D $LATENCY
+
+# Enable and start
+systemctl -q stop health_check_"$i".service || true && success "$(date) - Stopped health_check_$i.service - Ok" 
+systemctl -q daemon-reload && success "$(date) - daemon-reload - $i" || fatal "$(date) - daemon-reload - $i"
+systemctl -q enable health_check_"$i".service && success "$(date) - enable health_check_$i.service - Ok" || fatal "$(date) - enable health_check_$i.service - Failed"
+systemctl -q start health_check_"$i".service && success "$(date) - start health_check_$i.service - Ok" || fatal "$(date) - start health_check_$i.service - Failed"  
+}
+
+###############################################################################################################
+# SETUP DPINGER SYSTEMD                                                                                       #
+###############################################################################################################
+setup_dpinger(){
+    readarray -t interfaces < <(cat /tmp/interfaces)
+    for i in "${interfaces[@]// /}" ; do 
+        IP=$(ip address show dev "$i" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
+        dpinger_systemd && success "$(date) - setup_dpinger - Interface monitor service for interface: $i created!" || error "$(date) - setup_dpinger - Failed to create interface monitor service for interface: $i"
+    done
+}
+
+###############################################################################################################
+# INIT                                                                                                        #
+###############################################################################################################
+header "INIT $(date)"
 debug_mode
 root_check && success "$(date) - INIT - Root check ok"
+find /tmp -type -f -iname "script_lock" -delete && success "$(date) - Removed lock file" || error "$(date) - Failed to remove lock file"
 
-################################ Update and upgrade
+###############################################################################################################
+# UPDATE & UPGRADE & DEPENDENCIES                                                                             #
+###############################################################################################################
 header "Update & upgrade $(date)"
 apt update && success "$(date) - update - Updated" || fatal "$(date) - update - Failed to update"
 apt full-upgrade -y && success "$(date) - full-upgrade - Upgraded" || fatal "$(date) - full-upgrade - Failed to upgrade"
 header "Dependencies $(date)"
-apt install -y unbound dnsutils curl redis-server && success "$(date) - Dependancies - Installed" || fatal "$(date) - Dependancies - Failed to install"
+apt install -y unbound dnsutils curl redis-server make clang git && success "$(date) - Dependancies - Installed" || fatal "$(date) - Dependancies - Failed to install"
 
-################################ Get all valid LTE interfaces
+###############################################################################################################
+# GET ALL VALID LTE INTERFACES                                                                                #
+###############################################################################################################
 header "$(date) - Get all interfaces"
 cat /dev/null > /tmp/interfaces && success "$(date) - Get all interfaces - Cleared temp file" || fatal "$(date) - Get all interfaces - Failed to clear temp file"
 get_interfaces
 
-################################ Create scripts dir
+###############################################################################################################
+# CREATE DIRECTORIES                                                                                          #
+###############################################################################################################
 mkdir -p /var/scripts && success "$(date) - Create DIRs - Scripts dir created"
 mkdir -p /var/scripts/ResolvConfBackup && success "$(date) - Create DIRs - Scripts/ResolvConfBackup dir created"
 
-################################ Fix: dhcpcd[5131]: script_runreason: control_queue: No buffer space available
+###############################################################################################################
+# INSTALL DPINGER                                                                                             #
+###############################################################################################################
+header "Install Dpinger $(date)"
+
+if [ -d /opt/dpinger ]; then
+    rm -rf /opt/dpinger && success "$(date) - Install Dpinger - Removed existing /opt/dpinger" || error "$(date) - Install Dpinger - Failed to remove /opt/dpinger"
+fi
+
+git clone https://gitlab.com/pfsense/dpinger.git /opt/dpinger && success "$(date) - Install Dpinger - Cloned Dpinger with git" || fatal "$(date) - Install Dpinger - Failed to clone Dpinger with git"
+cd /opt/dpinger && success "$(date) - Install Dpinger - Changed directory: /opt/dpinger" || fatal "$(date) - Install Dpinger - Failed to change directory to /opt/dpinger"
+make && success "$(date) - Install Dpinger - MAKE" || fatal "$(date) - Install Dpinger - Failed to MAKE"
+mv dpinger /sbin/dpinger && success "$(date) - Install Dpinger - Moved Dpinger to /sbin" || fatal "$(date) - Install Dpinger - Failed to move Dpinger to /sbin"
+chmod +x /sbin/dpinger && success "$(date) - Install Dpinger - Set permissions on /sbin/dpinger" || fatal "$(date) - Install Dpinger - Failed to set permissions on /sbin/dpinger"
+cd - 
+rm -r /opt/dpinger && success "$(date) - Install Dpinger - Removed leftovers" || fatal "$(date) - Install Dpinger - Failed to remove leftovers"
+
+if /sbin/dpinger -S -i dpinger -L "$LOSS" -B "$MAINIP" 1.1.1.1; then
+    success "$(date) - Install Dpinger - Installed"
+    pkill dpinger || true && success "$(date) - Install Dpinger - Test service stopped"
+else
+    fatal "$(date) - Install Dpinger - Failed to install"
+fi
+
+###############################################################################################################
+# FIX: dhcpcd[5131]: script_runreason: control_queue: No buffer space available                               #
+###############################################################################################################
 if [ -f /proc/sys/net/core/wmem_max ]; then
     cp /proc/sys/net/core/wmem_max /proc/sys/net/core/wmem_max.backup."$DATE" && success "$(date) - Increase buffer space - Backup wmem_max" || error "$(date) - Increase buffer space - Failed to backup wmem_max"
     echo "638976" > /proc/sys/net/core/wmem_max && success "$(date) - Increase buffer space - wmem_max set to 638976, 3 times its original value" || error "$(date) - Increase buffer space - Failed to set wmem_max"
@@ -140,7 +238,10 @@ else
     warning "$(date) - Increase buffer space - wmem_max not present"
 fi
 
-################################ Disable listening of resolved on port 53 and set dns server to unbound and have cloudflare as fallback IP in case unbound is unreachable
+###############################################################################################################
+# DISABLE RESOLVED                                                                                            #
+###############################################################################################################
+# Disable listening of resolved on port 53 and set dns server to unbound and have cloudflare as fallback IP in case unbound is unreachable
 cp /etc/systemd/resolved.conf /etc/systemd/resolved.conf.backup."$DATE" && success "$(date) - Resolved - Config backed up" || fatal "$(date) - Resolved - Failed to backup config"
 
 # The DNSStubListener directive is essential to ensure it does not listen for DNS queries.
@@ -157,11 +258,21 @@ EOF
 systemctl stop systemd-resolved.service && success "$(date) - Resolved - Stopped service" || fatal "$(date) - Resolved - Failed to stop service"
 systemctl disable systemd-resolved.service && success "$(date) - Resolved - Disabled service" || fatal "$(date) - Resolved - Failed to disable service"
 
-################################  Dhcpcd.conf
-#sed -i '/static routers=192.168.8.1/a static domain_name_servers=127.0.0.1' /etc/dhcpcd.conf
-#sed -i '/static domain_name_servers=127.0.0.1/a \ ' /etc/dhcpcd.conf
+###############################################################################################################
+# CLEAR RESOLVCONF HOOK SCRIPTS                                                                               #
+###############################################################################################################
+# Remove this hook file since it overrides /etc/resolv.conf with rubbish
+if [ -f /etc/dhcp/dhclient-enter-hooks.d/resolvconf  ]; then
+    mv /etc/dhcp/dhclient-enter-hooks.d/resolvconf /var/scripts/ResolvConfBackup/resolvconf && success "$(date) - Resolvconf - Removed dhcp resolvconf hook" || warning "$(date) - Resolvconf - Failed to remove dhcp resolvconf hook"
+fi
 
-################################ Setup Redis cache for unbound DNS entries
+if [ -f /lib/dhcpcd/dhcpcd-hooks/20-resolv.conf ]; then
+    mv /lib/dhcpcd/dhcpcd-hooks/20-resolv.conf /var/scripts/ResolvConfBackup/20-resolv.conf && success "$(date) - Resolvconf - Removed dhcpcd resolvconf hook" || warning "$(date) - Resolvconf - Failed to remove dhcpcd resolvconf hook"
+fi
+
+###############################################################################################################
+# REDIS                                                                                                       #
+###############################################################################################################
 if ! crontab -l | grep "transparent_hugepage"; then
     # Cronjob check
         crontab -l | { cat; echo '@reboot /bin/echo never > /sys/kernel/mm/transparent_hugepage/enabled'; } | crontab - && success "$(date) - Redis - Set crontab never > /sys/kernel/mm/transparent_hugepage/enabled" || fatal "$(date) - Redis- Failed to set cronjob never > /sys/kernel/mm/transparent_hugepage/enabled"
@@ -176,20 +287,12 @@ cat > /etc/redis/redis.conf <<EOF && success "$(date) - Redis - Wrote redis conf
 #
 # ./redis-server /path/to/redis.conf
 
-# TCP listen() backlog.
-#
-# In high requests-per-second environments you need an high backlog in order
-# to avoid slow clients connections issues. Note that the Linux kernel
-# will silently truncate it to the value of /proc/sys/net/core/somaxconn so
-# make sure to raise both the value of somaxconn and tcp_max_syn_backlog
-# in order to get the desired effect.
-tcp-backlog 511
-
 bind 127.0.0.1
 protected-mode yes
 port 6379
 # unixsocket /var/run/redis/redis-server.sock
 # unixsocketperm 700
+tcp-backlog 511
 tcp-keepalive 300
 supervised no
 daemonize yes
@@ -249,7 +352,9 @@ EOF
 systemctl restart redis-server.service && success "$(date) - Setup Redis - Restarted server service" || error "$(date) - Setup  Redis - Failed to restart server service"
 systemctl restart redis.service && success "$(date) - Setup Redis - Restarted service" || error "$(date) - Setup  Redis - Failed to restart service"
 
-################################ Setup Unbound
+###############################################################################################################
+# UNBOUND                                                                                                     #
+###############################################################################################################
 # Setup root.hint grab cronjob
 if ! crontab -l | grep "root.hints"; then
     # Cronjob check
@@ -269,7 +374,7 @@ else
 	fatal "$(date) - Setup Unbound - Failed to increase net.core.rmem_max"
 fi
 
-# Unbound
+# Unbound config
 cat > /etc/unbound/unbound.conf <<EOF && success "$(date) - Setup Unbound - Wrote unbound config" || fatal "$(date) - Setup Unbound - Failed to write unbound config"
 ###########################################################################
 # Redis cache
@@ -653,25 +758,19 @@ set_outgoing_interfaces_unbound
 systemctl enable unbound.service && success "$(date) - Setup Unbound - Enabled service" || fatal "$(date) - Setup Unbound - Failed to enable service"
 systemctl restart unbound.service && success "$(date) - Setup Unbound - Restarted service" || fatal "$(date) - Setup Unbound - Failed to restart service"
 
-################################ Check resolv.conf, needs to be updated by resolved automagically
-# Remove this hook file since it overrides /etc/resolv.conf with rubbish
-if [ -f /etc/dhcp/dhclient-enter-hooks.d/resolvconf  ]; then
-    mv /etc/dhcp/dhclient-enter-hooks.d/resolvconf /var/scripts/ResolvConfBackup/resolvconf && success "$(date) - Resolvconf - Removed dhcp resolvconf hook" || warning "$(date) - Resolvconf - Failed to remove dhcp resolvconf hook"
-fi
-
-if [ -f /lib/dhcpcd/dhcpcd-hooks/20-resolv.conf ]; then
-    mv /lib/dhcpcd/dhcpcd-hooks/20-resolv.conf /var/scripts/ResolvConfBackup/20-resolv.conf && success "$(date) - Resolvconf - Removed dhcpcd resolvconf hook" || warning "$(date) - Resolvconf - Failed to remove dhcpcd resolvconf hook"
-fi
-
-# Just to be safe
+###############################################################################################################
+# RESOLV.CONF                                                                                                 #
+###############################################################################################################
 #crontab -l | { cat; echo '* * * * * echo "nameserver 127.0.0.1" > /etc/resolv.conf'; } | crontab - && success "$(date) - Resolvconf - Set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf"
 mv /etc/resolv.conf /etc/resolv.conf.backup."$DATE"
 echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf"
+
 # Write protect /etc/resolv.conf
 chattr +i /etc/resolv.conf && success "$(date) - Setup Unbound - Write protect set on /etc/resolv.conf" || fatal "$(date) - Setup Unbound - Failed to to set write protect on /etc/resolv.conf"
 
-
-################################ DNS check loopback -> unbound cache/forward
+###############################################################################################################
+# TEST UNBOUND                                                                                                #
+###############################################################################################################
 # Clear current DNS cache
 unbound-control flush && success "$(date) - DNS Check - Flush DNS" || fatal "$(date) - DNS Check - Flushing DNS failed"
 
@@ -681,14 +780,31 @@ else
     fatal "$(date) - DNS Check - DNS is not working via unbound!"
 fi
 
-################################  Misc
-header "$(date) - Misc"
+###############################################################################################################
+# SETUP DPINGER                                                                                               #
+###############################################################################################################
+header "$(date) - Dpinger systemd generator"
 
+# Create services for the health check of each interface inside /var/scripts/dpinger/$interface.sh
+setup_dpinger
+
+###############################################################################################################
+# APT FORCE IPV4                                                                                              #
+###############################################################################################################
+header "$(date) - APT Force IPV4"
 if [ "$APTIPV4" == "ON" ]; then
     echo 'Acquire::ForceIPv4 “true”;' > /etc/apt/apt.conf.d/99force-ipv4 && success "$(date) - Misc - Force APT to use IPV4" || fatal "$(date) - Misc - Failed to force APT to use IPV4"
 fi
 
-# End of script
+###############################################################################################################
+# MISC                                                                                                        #
+###############################################################################################################
+header "$(date) - Misc"
+
+
+###############################################################################################################
+# END                                                                                                         #
+###############################################################################################################
 success "$(date) - Script finished - $COUNTER Warning(s) and / or error(s)"
 cat /var/log/health_check_script_errors_warnings.log
 
