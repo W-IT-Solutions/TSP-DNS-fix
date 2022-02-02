@@ -37,11 +37,11 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 `dig -p 53 facebook.com @127.0.0.1`
 
 # Download the script, inspect it, adjust variable's and run
-`wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/DNSPI.sh`
+`wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/install.sh`
 
-`nano DNSPI.sh`
+`nano install.sh`
 
-`bash DNSPI.sh`
+`bash install.sh`
 
 
 ## showcase of working DNS with main interface down:
