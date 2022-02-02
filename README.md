@@ -19,7 +19,7 @@ When not changing the metric of the failing interface, the system will use the I
 Its not possible to send traffic out all interfaces at once, for this we'd need bonding, also an option though.
 
 ## Solution
-For now we're able to do lookups even when the main interface is down on each interface that is up.
+We're able to do lookups even when the main interface is down on each interface that is up.
 we monitor the interface state with dpinger which writes the values and a systemd script checks those and adds or removes outgoing-interfaces from unbound.conf automatically based on link status. End result, always a working DNS resolver.
 
 In order have a connection again on the file system when the main interface is down, we can use dpinger and the same script to add (+1000) metric to interfaces that are down. In turn when the interface is up deduct (-1000) from the metric and the interface is add to the 'working interface pool' again.
