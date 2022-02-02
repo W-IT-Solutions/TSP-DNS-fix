@@ -1,8 +1,9 @@
 #!/bin/bash
 # shellcheck disable=SC2015,SC2004,SC2002
 # Jan 6 2022 - scripting@waaromzomoeilijk.nl
-
-################################ Logger
+###############################################################################################################
+# LOGGER                                                                                                      #
+###############################################################################################################
 INTERACTIVE="0" # 1 = on / 0 = off - Log all script output to file (0) or just output everything in stout (1)
 if ! [ "$INTERACTIVE" == 1 ]; then 
     LOGFILE="/var/log/health_check.log" # Log file
@@ -10,8 +11,9 @@ if ! [ "$INTERACTIVE" == 1 ]; then
     trap 'exec 2>&4 1>&3' 0 1 2 3 15 RETURN
     exec 1>>"$LOGFILE" 2>&1
 fi
-
-################################ CMD line output
+###############################################################################################################
+# CMD LINE OUTPUT                                                                                             #
+###############################################################################################################
 print_text_in_color() {
 	/usr/bin/printf "%b%s%b\n" "$1" "$2" "$Color_Off"
 }
@@ -41,20 +43,22 @@ fatal() {
 	/bin/echo -e "${IRed} $* ${Color_Off}" >&2
   	/bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log    
 	if [ -f /tmp/.script_lock_"$1" ]; then
-		rm -rf /tmp/.script_lock_"$1" && success "$(date) - $1 - Removed /tmp/.script_lock_$1 prematurely" || fatal "$(date) - $1 - Failed to remove /tmp/.script_lock_$1"
+		rm -rf /tmp/.script_lock_"$1" && success "$(date) - $1 - Removed /tmp/.script_lock_$1 prematurely"
 	fi
 	exit 1
 }
-
-################################ Check / Set lock
+###############################################################################################################
+# CHECK / SET LOCK                                                                                            #
+###############################################################################################################
 if [ -f /tmp/.script_lock_"$1" ]; then
     	warning "$(date) - $1 - Script is already running"
 	exit 1
 else
    	 touch /tmp/.script_lock_"$1" && success "$(date) - $1 - Created /tmp/.script_lock_$1" || fatal "$(date) - $1 - Failed to create /tmp/.script_lock_$1"
 fi
-
-################################ Interface parameter check
+###############################################################################################################
+# INTERFACE VARIABLE CHECK                                                                                    #
+###############################################################################################################
 header "$(date) - $1 - Health check initiated"
 if [ -n "$1" ]; then
 	INTERFACE="$1"
@@ -62,8 +66,9 @@ if [ -n "$1" ]; then
 else
 	fatal "$(date) - Interface parameter not detected"
 fi
-
-################################ Vars and functions
+###############################################################################################################
+# VARIABLES                                                                                                   #
+###############################################################################################################
 DEBUG="1" # 1 = on / 0 = off
 IP=$(ip address show dev "$INTERFACE" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
 #GW='192.168.8.1'
@@ -86,60 +91,25 @@ if [ -n "$IP" ]; then
 else
 	fatal "$(date) - $INTERFACE - IP variable not detected"
 fi
-
-################################ Stock snippits
+###############################################################################################################
+# STOCK SNIPPITS                                                                                              #
+###############################################################################################################
 # && success "$(date) - $INTERFACE - INIT - Debug set" || fatal "$(date) - $INTERFACE - INIT - Setting debug failed"
 
-################################ Root check
-is_root() {
-	if [[ "$EUID" -ne 0 ]];	then
-		return 1
-	else
-		return 0
-	fi
-}
-
-root_check() {
-	if ! is_root; then
-		fatal "$(date) - INIT - Failed, script needs sudo permissions to function right now"
-	fi
-}
-
-################################ Debug mode, script stops when a commands errors out
-debug_mode() {
-	if [ "$DEBUG" -eq 1 ]; then
-		set -ex && success "$(date) - $INTERFACE - INIT - Debug set" || error "$(date) - $INTERFACE - INIT - Setting debug failed"
-	fi
-}
-
-################################ Pre
-debug_mode
-root_check
-# Remove when verified
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: dest_addr $dest_addr alarm_flag $alarm_flag latency_avg $latency_avg loss_avg $loss_avg"
-#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 1 $1"
-#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 2 $2"
-#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 3 $3"
-#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 4 $4"
-#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 5 $5"
-#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 6 $6"
-#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 7 $7"
-#header "$(date) - $INTERFACE - INIT - Use Dpinger variables: 8 $8"
-
+###############################################################################################################
+# LEGACY                                                                                                      #
+###############################################################################################################
 ################################ Delete routes | only for reference
 #ip route delete default via "$GW" dev "$INTERFACE" src "$IP" && success "$(date) - $INTERFACE - Deleted routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to delete routes for $INTERFACE"
 #route -vF del -net "$NETWORK".0/24 gw 0.0.0.0 
 #ip rule del from "$NETWORK"."${octet}" table "${tablenum}"
-
 ################################ Bring down the interface | only for reference
 #ip link set "$INTERFACE" down && success "$(date) - $INTERFACE - $INTERFACE is brought down" || fatal "$(date) - $INTERFACE - Failed to bring down $INTERFACE"
-
 ################################ Add routes | only for reference
 #ip route add default via "$GW" dev "$INTERFACE" src "$NETWORK"."$octet" table "$tablenum" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
 #if ! ip rule show | grep -q "$NETWORK.${octet}"; then
 	#ip rule add from "$NETWORK"."${octet}" table "${tablenum}" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
 #fi
-
 ################################ Automate based on alert_flag | only for reference
 # the alert_cmd is invoked as "alert_cmd dest_addr alarm_flag latency_avg loss_avg"
 # alarm_flag is set to 1 if either latency or loss is in alarm state
@@ -149,8 +119,39 @@ header "$(date) - $INTERFACE - INIT - Use Dpinger variables: dest_addr $dest_add
 #else
 #    my_clear_cmd # "$dest_addr" "$latency_avg" "$loss_avg"
 #fi
-
-################################ Loop checking for connectivity and adding routes on downed interface
+###############################################################################################################
+# ROOT CHECK                                                                                                  #
+###############################################################################################################
+is_root() {
+	if [[ "$EUID" -ne 0 ]];	then
+		return 1
+	else
+		return 0
+	fi
+}
+root_check() {
+	if ! is_root; then
+		fatal "$(date) - INIT - Failed, script needs sudo permissions to function right now"
+	fi
+}
+###############################################################################################################
+# DEBUG                                                                                                       #
+###############################################################################################################
+debug_mode() {
+	if [ "$DEBUG" -eq 1 ]; then
+		set -ex && success "$(date) - $INTERFACE - INIT - Debug set" || error "$(date) - $INTERFACE - INIT - Setting debug failed"
+	fi
+}
+###############################################################################################################
+# INIT                                                                                                        #
+###############################################################################################################
+debug_mode
+root_check
+# Remove when verified
+header "$(date) - $INTERFACE - INIT - Use Dpinger variables: dest_addr $dest_addr alarm_flag $alarm_flag latency_avg $latency_avg loss_avg $loss_avg"
+###############################################################################################################
+# LOOP: CHECK LINK AND ACT                                                                                    #
+###############################################################################################################
 while :
 do
 	header "$(date) - $INTERFACE - Loop, checking for connectivity"
@@ -208,14 +209,14 @@ do
 	header "$(date) - $INTERFACE - Eat, sleep, bash, repeat"
 	sleep "$WAITSEC"
 done
-
-################################ Remove lock
+###############################################################################################################
+# REMOVE LOCK                                                                                                 #
+###############################################################################################################
 if [ -f /tmp/.script_lock_"$INTERFACE" ]; then
     rm /tmp/.script_lock_"$INTERFACE" && success "$(date) - $INTERFACE - Removed lock file" || fatal "$(date) - $INTERFACE - Failed to remove lock file"
 fi
-
-# End of script
+###############################################################################################################
+# END                                                                                                         #
+###############################################################################################################
 success "$(date) - $INTERFACE - Script finished - $COUNTER Warning(s) and / or error(s)"
-#cat /var/log/health_check_script_errors_warnings.log
-
 exit 0

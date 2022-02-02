@@ -208,24 +208,25 @@ mkdir -p /var/scripts/ResolvConfBackup && success "$(date) - Create DIRs - Scrip
 # INSTALL DPINGER                                                                                             #
 ###############################################################################################################
 header "Install Dpinger $(date)"
+if ! [ -f /sbin/dpinger ]; then 
+    if [ -d /opt/dpinger ]; then
+        rm -rf /opt/dpinger && success "$(date) - Install Dpinger - Removed existing /opt/dpinger" || error "$(date) - Install Dpinger - Failed to remove /opt/dpinger"
+    fi
 
-if [ -d /opt/dpinger ]; then
-    rm -rf /opt/dpinger && success "$(date) - Install Dpinger - Removed existing /opt/dpinger" || error "$(date) - Install Dpinger - Failed to remove /opt/dpinger"
-fi
+    git clone https://gitlab.com/pfsense/dpinger.git /opt/dpinger && success "$(date) - Install Dpinger - Cloned Dpinger with git" || fatal "$(date) - Install Dpinger - Failed to clone Dpinger with git"
+    cd /opt/dpinger && success "$(date) - Install Dpinger - Changed directory: /opt/dpinger" || fatal "$(date) - Install Dpinger - Failed to change directory to /opt/dpinger"
+    make && success "$(date) - Install Dpinger - MAKE" || fatal "$(date) - Install Dpinger - Failed to MAKE"
+    mv dpinger /sbin/dpinger && success "$(date) - Install Dpinger - Moved Dpinger to /sbin" || fatal "$(date) - Install Dpinger - Failed to move Dpinger to /sbin"
+    chmod +x /sbin/dpinger && success "$(date) - Install Dpinger - Set permissions on /sbin/dpinger" || fatal "$(date) - Install Dpinger - Failed to set permissions on /sbin/dpinger"
+    cd - 
+    rm -r /opt/dpinger && success "$(date) - Install Dpinger - Removed leftovers" || fatal "$(date) - Install Dpinger - Failed to remove leftovers"
 
-git clone https://gitlab.com/pfsense/dpinger.git /opt/dpinger && success "$(date) - Install Dpinger - Cloned Dpinger with git" || fatal "$(date) - Install Dpinger - Failed to clone Dpinger with git"
-cd /opt/dpinger && success "$(date) - Install Dpinger - Changed directory: /opt/dpinger" || fatal "$(date) - Install Dpinger - Failed to change directory to /opt/dpinger"
-make && success "$(date) - Install Dpinger - MAKE" || fatal "$(date) - Install Dpinger - Failed to MAKE"
-mv dpinger /sbin/dpinger && success "$(date) - Install Dpinger - Moved Dpinger to /sbin" || fatal "$(date) - Install Dpinger - Failed to move Dpinger to /sbin"
-chmod +x /sbin/dpinger && success "$(date) - Install Dpinger - Set permissions on /sbin/dpinger" || fatal "$(date) - Install Dpinger - Failed to set permissions on /sbin/dpinger"
-cd - 
-rm -r /opt/dpinger && success "$(date) - Install Dpinger - Removed leftovers" || fatal "$(date) - Install Dpinger - Failed to remove leftovers"
-
-if /sbin/dpinger -S -i dpinger -L "$LOSS" -B "$MAINIP" 1.1.1.1; then
-    success "$(date) - Install Dpinger - Installed"
-    pkill dpinger || true && success "$(date) - Install Dpinger - Test service stopped"
-else
-    fatal "$(date) - Install Dpinger - Failed to install"
+    if /sbin/dpinger -S -i dpinger -L "$LOSS" -B "$MAINIP" 1.1.1.1; then
+        success "$(date) - Install Dpinger - Installed"
+        pkill dpinger || true && success "$(date) - Install Dpinger - Test service stopped"
+    else
+        fatal "$(date) - Install Dpinger - Failed to install"
+    fi
 fi
 
 ###############################################################################################################
