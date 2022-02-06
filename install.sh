@@ -147,11 +147,12 @@ After=network.target
 
 [Service]
 Type=simple
+ExecStartPre=/bin/sleep 60
 ExecStart=/sbin/dpinger -f -S -i "dpinger $i" -R -o "/tmp/health_$i" -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash /var/scripts/health_check.sh $i"
 Restart=on-failure
 StartLimitBurst=2
-# Restart, but not more than once every minute
-StartLimitInterval=60
+# Restart, but not more than once every minute and a half
+StartLimitInterval=90
 
 [Install]
 WantedBy=multi-user.target
