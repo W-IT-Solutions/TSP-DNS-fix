@@ -15,7 +15,7 @@
 ###############################################################################################################
 # LOGGER                                                                                                      #
 ###############################################################################################################
-INTERACTIVE="0" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
+INTERACTIVE="1" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
 if ! [ $INTERACTIVE == 1 ]; then 
 
     LOGFILE="/var/log/DNS_fix_install.log" # Log file
@@ -25,7 +25,7 @@ if ! [ $INTERACTIVE == 1 ]; then
 fi
 cat /dev/null > /var/log/health_check_script_errors_warnings.log && success "$(date) - INIT - Cleaned error/warning log" || error "$(date) - INIT - Failed to clean error/wrning log"
 
-exit 0 # Do not run in production untill this line is removed.
+#exit 0 # Do not run in production untill this line is removed.
 
 ###############################################################################################################
 # STOCK SNIPPITS                                                                                              #
@@ -244,7 +244,7 @@ fi
 ###############################################################################################################
 if [ -f /proc/sys/net/core/wmem_max ]; then
     cp /proc/sys/net/core/wmem_max /proc/sys/net/core/wmem_max.backup."$DATE" && success "$(date) - Increase buffer space - Backup wmem_max" || error "$(date) - Increase buffer space - Failed to backup wmem_max"
-    echo "638976" > /proc/sys/net/core/wmem_max && success "$(date) - Increase buffer space - wmem_max set to 638976, 3 times its original value" || error "$(date) - Increase buffer space - Failed to set wmem_max"
+    echo "638976" > /proc/sys/net/core/wmem_max && success "$(date) - Increase buffer space - wmem_max set to 638976, 3 times its original value" || warning "$(date) - Increase buffer space - Failed to set wmem_max"
 else
     warning "$(date) - Increase buffer space - wmem_max not present"
 fi
@@ -254,7 +254,7 @@ fi
 ###############################################################################################################
 if [ -f etc/systemd/resolved.conf ]; then
     # Disable listening of resolved on port 53 and set dns server to unbound and have cloudflare as fallback IP in case unbound is unreachable
-    cp /etc/systemd/resolved.conf /etc/systemd/resolved.backup."$DATE" && success "$(date) - Resolved - Config backed up" || fatal "$(date) - Resolved - Failed to backup config"
+    cp /etc/systemd/resolved.conf /etc/systemd/resolved.backup."$DATE" && success "$(date) - Resolved - Config backed up" || error "$(date) - Resolved - Failed to backup config"
 
     # The DNSStubListener directive is essential to ensure it does not listen for DNS queries.
     # You may actually want MulticastDNS if you do not use avahi-daemon for multicast-DNS purpose
@@ -292,76 +292,6 @@ if ! crontab -l | grep "transparent_hugepage"; then
         /bin/echo never > /sys/kernel/mm/transparent_hugepage/enabled
 fi
 
-cat > /etc/redis/redis.conf <<EOF && success "$(date) - Redis - Wrote redis config" || fatal "$(date) - Redis - Failed to write redis config"
-# Redis configuration file example.
-#
-# Note that in order to read the configuration file, Redis must be
-# started with the file path as first argument:
-#
-# ./redis-server /path/to/redis.conf
-
-bind 127.0.0.1
-protected-mode yes
-port 6379
-# unixsocket /var/run/redis/redis-server.sock
-# unixsocketperm 700
-tcp-backlog 511
-tcp-keepalive 300
-supervised no
-daemonize yes
-rdb-save-incremental-fsync yes
-aof-rewrite-incremental-fsync yes
-dynamic-hz yes
-hz 50
-client-output-buffer-limit normal 0 0 0
-client-output-buffer-limit replica 256mb 64mb 60
-client-output-buffer-limit pubsub 32mb 8mb 60
-activerehashing yes
-stream-node-max-bytes 4096
-stream-node-max-entries 100
-zset-max-ziplist-entries 128
-zset-max-ziplist-value 64
-hll-sparse-max-bytes 3000
-set-max-intset-entries 512
-list-compress-depth 0
-list-max-ziplist-size -2
-hash-max-ziplist-entries 512
-hash-max-ziplist-value 64
-notify-keyspace-events ""
-latency-monitor-threshold 0
-slowlog-max-len 128
-slowlog-log-slower-than 10000
-lua-time-limit 5000
-aof-use-rdb-preamble yes
-aof-load-truncated yes
-auto-aof-rewrite-percentage 100
-auto-aof-rewrite-min-size 64mb
-no-appendfsync-on-rewrite no
-appendfsync everysec
-appendfilename "appendonly.aof"
-appendonly no
-lazyfree-lazy-eviction no
-lazyfree-lazy-expire no
-lazyfree-lazy-server-del no
-replica-lazy-flush no
-repl-disable-tcp-nodelay no
-repl-diskless-sync no
-repl-diskless-sync-delay 5
-replica-read-only yes
-replica-serve-stale-data yes
-dir /var/lib/redis
-dbfilename dump.rdb
-rdbchecksum yes
-rdbcompression yes
-stop-writes-on-bgsave-error yes
-save 900 1
-save 300 10
-save 60 10000
-databases 16
-logfile /var/log/redis/redis-server.log
-loglevel notice
-EOF
-
 systemctl restart redis-server.service && success "$(date) - Setup Redis - Restarted server service" || error "$(date) - Setup  Redis - Failed to restart server service"
 systemctl restart redis.service && success "$(date) - Setup Redis - Restarted service" || error "$(date) - Setup  Redis - Failed to restart service"
 
@@ -375,13 +305,15 @@ if ! crontab -l | grep "root.hints"; then
 fi
 
 # Check and increase net.core.rmem_max
+echo "# $(grep 'net.core.rmem_max' /etc/sysctl.conf)" > /tmp/net.core && success "$(date) - RMEM MAX - Backed up old value of rmem_max in /tmp/net.core" || fatal "$(date) - RMEM MAX - Failed to backup old value of rmem_max in /tmp/net.core"
+cat /tmp/net.core >> /etc/sysctl.conf && success "$(date) - RMEM MAX - Backed up old value of rmem_max in /etc/sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to backup old value of rmem_max in /etc/sysctl.conf"
+
 if $SYSCTL; then
 	sed -i "/net.core.rmem_max/d" /etc/sysctl.conf && success "$(date) - RMEM MAX - Removed old value from sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to remove old value from sysctl.conf"
-	echo "#$SYSCTL # Old value" >> /etc/sysctl.conf && success "$(date) - RMEM MAX - Backed up old value of rmem_max in sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to backup old value of rmem_max in sysctl.conf"
 fi
 
 echo "net.core.rmem_max=1048576" >> /etc/sysctl.conf 
-if sysctl -p | grep 'net.core.rmem_max=1048576'; then
+if sysctl -p | grep 'net.core.rmem_max = 1048576'; then
 	success "$(date) - Setup Unbound - Increased net.core.rmem_max"
 else
 	fatal "$(date) - Setup Unbound - Failed to increase net.core.rmem_max"
@@ -775,7 +707,7 @@ systemctl restart unbound.service && success "$(date) - Setup Unbound - Restarte
 # RESOLV.CONF                                                                                                 #
 ###############################################################################################################
 #crontab -l | { cat; echo '* * * * * echo "nameserver 127.0.0.1" > /etc/resolv.conf'; } | crontab - && success "$(date) - Resolvconf - Set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf"
-mv /etc/resolv.conf /etc/resolv.backup."$DATE"
+cp /etc/resolv.conf /etc/resolv.backup."$DATE"
 echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf"
 
 # Write protect /etc/resolv.conf
@@ -785,7 +717,7 @@ chattr +i /etc/resolv.conf && success "$(date) - Setup Unbound - Write protect s
 # TEST UNBOUND                                                                                                #
 ###############################################################################################################
 # Clear current DNS cache
-unbound-control flush && success "$(date) - DNS Check - Flush DNS" || fatal "$(date) - DNS Check - Flushing DNS failed"
+unbound-control flush facebook.com && success "$(date) - DNS Check - Flush DNS" || fatal "$(date) - DNS Check - Flushing DNS failed"
 
 if host facebook.com; then
     success "$(date) - DNS Check - DNS is working via unbound!"
