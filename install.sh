@@ -25,6 +25,8 @@ if ! [ $INTERACTIVE == 1 ]; then
 fi
 cat /dev/null > /var/log/health_check_script_errors_warnings.log && success "$(date) - INIT - Cleaned error/warning log" || error "$(date) - INIT - Failed to clean error/wrning log"
 
+exit 0 # Do not run in production untill this line is removed.
+
 ###############################################################################################################
 # STOCK SNIPPITS                                                                                              #
 ###############################################################################################################
@@ -201,8 +203,14 @@ get_interfaces
 ###############################################################################################################
 # CREATE DIRECTORIES                                                                                          #
 ###############################################################################################################
-mkdir -p /var/scripts && success "$(date) - Create DIRs - Scripts dir created"
-mkdir -p /var/scripts/ResolvConfBackup && success "$(date) - Create DIRs - Scripts/ResolvConfBackup dir created"
+mkdir -p /var/scripts && success "$(date) - Create DIRs - Scripts"
+mkdir -p /var/scripts/ResolvConfBackup && success "$(date) - Create DIRs - Scripts/ResolvConfBackup"
+
+###############################################################################################################
+# GRAB HEALTH_CHECK.SH                                                                                        #
+###############################################################################################################
+wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh /var/scripts/health_check.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
+chmod +x /var/scripts/health_check.sh && success "$(date) - chmod +x health_check.sh - Done" || error "$(date) - chmod +x health_check.sh - Failed"
 
 ###############################################################################################################
 # INSTALL DPINGER                                                                                             #

@@ -174,7 +174,7 @@ do
 		else
 			# Change to set unbound interfaces and reload
 			echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf
-			unbound-control dump_cache > /etc/unbound/cache.file && success "$(date) Backed up unbound cache to /etc/unbound/cache.file" || error "$(date) - Failed to backup unbound cache to /etc/unbound/cache.file"
+			unbound-control dump_cache > /etc/unbound/cache.file && success "$(date) - Backed up unbound cache to /etc/unbound/cache.file" || error "$(date) - Failed to backup unbound cache to /etc/unbound/cache.file"
 			unbound-control reload && success "$(date) - Reload unbound" || error "$(date) - Failed to reload unbound"
 			unbound-control load_cache < /etc/unbound/cache.file && success "$(date) - Loaded unbound cache from /etc/unbound/cache.file" || error "$(date) - Failed to load unbound cache from /etc/unbound/cache.file"
 		fi
