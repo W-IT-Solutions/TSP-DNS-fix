@@ -209,8 +209,10 @@ mkdir -p /var/scripts/ResolvConfBackup && success "$(date) - Create DIRs - Scrip
 ###############################################################################################################
 # GRAB HEALTH_CHECK.SH                                                                                        #
 ###############################################################################################################
-wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh /var/scripts/health_check.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
-chmod +x /var/scripts/health_check.sh && success "$(date) - chmod +x health_check.sh - Done" || error "$(date) - chmod +x health_check.sh - Failed"
+if ! [ -f /var/scripts/health_check.sh ]; then
+    wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh /var/scripts/health_check.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
+    chmod +x /var/scripts/health_check.sh && success "$(date) - chmod +x health_check.sh - Done" || error "$(date) - chmod +x health_check.sh - Failed"
+fi
 
 ###############################################################################################################
 # INSTALL DPINGER                                                                                             #
@@ -250,11 +252,12 @@ fi
 ###############################################################################################################
 # DISABLE RESOLVED                                                                                            #
 ###############################################################################################################
-# Disable listening of resolved on port 53 and set dns server to unbound and have cloudflare as fallback IP in case unbound is unreachable
-cp /etc/systemd/resolved.conf /etc/systemd/resolved.conf.backup."$DATE" && success "$(date) - Resolved - Config backed up" || fatal "$(date) - Resolved - Failed to backup config"
+if [ -f etc/systemd/resolved.conf ]; then
+    # Disable listening of resolved on port 53 and set dns server to unbound and have cloudflare as fallback IP in case unbound is unreachable
+    cp /etc/systemd/resolved.conf /etc/systemd/resolved.backup."$DATE" && success "$(date) - Resolved - Config backed up" || fatal "$(date) - Resolved - Failed to backup config"
 
-# The DNSStubListener directive is essential to ensure it does not listen for DNS queries.
-# You may actually want MulticastDNS if you do not use avahi-daemon for multicast-DNS purpose
+    # The DNSStubListener directive is essential to ensure it does not listen for DNS queries.
+    # You may actually want MulticastDNS if you do not use avahi-daemon for multicast-DNS purpose
 cat > /etc/systemd/resolved.conf <<EOF && success "$(date) - Resolved - New config set" || fatal "$(date) - Resolved - Failed to set new config"
 [Resolve]
 DNS=127.0.0.1
@@ -263,9 +266,10 @@ MulticastDNS=no
 DNSStubListener=no
 EOF
 
-# systemctl restart systemd-resolved.service && success "$(date) - Resolved - Restarted service" || fatal "$(date) - Resolved - Failed to restart service"
-systemctl stop systemd-resolved.service && success "$(date) - Resolved - Stopped service" || fatal "$(date) - Resolved - Failed to stop service"
-systemctl disable systemd-resolved.service && success "$(date) - Resolved - Disabled service" || fatal "$(date) - Resolved - Failed to disable service"
+    # systemctl restart systemd-resolved.service && success "$(date) - Resolved - Restarted service" || fatal "$(date) - Resolved - Failed to restart service"
+    systemctl stop systemd-resolved.service && success "$(date) - Resolved - Stopped service" || fatal "$(date) - Resolved - Failed to stop service"
+    systemctl disable systemd-resolved.service && success "$(date) - Resolved - Disabled service" || fatal "$(date) - Resolved - Failed to disable service"
+fi
 
 ###############################################################################################################
 # CLEAR RESOLVCONF HOOK SCRIPTS                                                                               #
@@ -771,7 +775,7 @@ systemctl restart unbound.service && success "$(date) - Setup Unbound - Restarte
 # RESOLV.CONF                                                                                                 #
 ###############################################################################################################
 #crontab -l | { cat; echo '* * * * * echo "nameserver 127.0.0.1" > /etc/resolv.conf'; } | crontab - && success "$(date) - Resolvconf - Set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf"
-mv /etc/resolv.conf /etc/resolv.conf.backup."$DATE"
+mv /etc/resolv.conf /etc/resolv.backup."$DATE"
 echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf"
 
 # Write protect /etc/resolv.conf
@@ -809,7 +813,6 @@ fi
 # MISC                                                                                                        #
 ###############################################################################################################
 header "$(date) - Misc"
-
 
 ###############################################################################################################
 # END                                                                                                         #
