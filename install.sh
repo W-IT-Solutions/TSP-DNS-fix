@@ -12,12 +12,12 @@
 # On the side this will also install systemd scripts for each interface to use for monitoring the LTE endpoint link state
 # Since the system with no MAIN Ethernet (or with for that matter) land line is not automatically switching based upon interface health
 # Therefore if interface is really down, remove it from unbound's 'outgoing-interface' config and reload. While preserving the cache (plus extra dump in redis for persistant cache)
+#
 ###############################################################################################################
 # LOGGER                                                                                                      #
 ###############################################################################################################
 INTERACTIVE="1" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
 if ! [ $INTERACTIVE == 1 ]; then 
-
     LOGFILE="/var/log/DNS_fix_install.log" # Log file
     exec 3>&1 4>&2
     trap 'exec 2>&4 1>&3' 0 1 2 3 15 RETURN
@@ -25,26 +25,30 @@ if ! [ $INTERACTIVE == 1 ]; then
 fi
 cat /dev/null > /var/log/health_check_script_errors_warnings.log && success "$(date) - INIT - Cleaned error/warning log" || error "$(date) - INIT - Failed to clean error/wrning log"
 
-#exit 0 # Do not run in production untill this line is removed.
-
 ###############################################################################################################
-# STOCK SNIPPITS                                                                                              #
+# DEFAULT LOG EXTENSION                                                                                       #
 ###############################################################################################################
-# Log line
 # && success "$(date) -  - " || fatal "$(date) -  - "
 
 ###############################################################################################################
 # VARIABLES                                                                                                   #
 ###############################################################################################################
-# Dynamic
+
+###############
+##### DYNAMIC #
+###############
+VERSION="0.1"
 DEBUG="1" # 1 = on / 0 = off
+SCRIPTS="/var/scripts"
 MAINETHNIC="enp0s31f6" # Interface to ignore, please adjust, should be different on each system
 APTIPV4="1" # Force APT to use IPV4, needed as IPV6 DNS lookups on LTE seem to fail (Note that IPV4 will still resolve both ipv4 and ipv6 addresses)
-#TIME="10" # 10 Seconds measure period for dpinger
 LOSS="15" # Loss % threshold
 #LATENCY="200m" # latency threshold in ms, use only m as in NUMBERm and not NUMBERms in var.
-SCRIPTS="/var/scripts"
-# Static
+#TIME="10" # 10 Seconds measure period for dpinger
+
+###############
+##### STATIC  #
+###############
 DATE=$(date +%d-%b-%Y-%H%M)
 COUNTER="0"
 MAINNIC=$(route -n | head -3 | tail -1 | awk '{printf "%s\n",$8}')
@@ -68,20 +72,20 @@ success() {
 }
 warning() {
 	/bin/echo -e "${IYellow} $* ${Color_Off}" >&2
-    	/bin/echo -e "${IYellow} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log 
-    	COUNTER=$((COUNTER+1))       
+    /bin/echo -e "${IYellow} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log 
+    COUNTER=$((COUNTER+1))       
 }
 error() {
 	/bin/echo -e "${IRed} $* ${Color_Off}" >&2
   	/bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log
-    	COUNTER=$((COUNTER+1))
+    COUNTER=$((COUNTER+1))
 }
 header() {
 	/bin/echo -e "${IBlue} $* ${Color_Off}" >&2
 }
 fatal() {
 	/bin/echo -e "${IRed} $* ${Color_Off}" >&2
-    	/bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log    
+    /bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log    
 	exit 1
 }
 
@@ -95,7 +99,6 @@ is_root() {
 		return 0
 	fi
 }
-
 root_check() {
 	if ! is_root; then
 		fatal "$(date) - INIT - Failed, script needs sudo permissions to function right now"
@@ -133,7 +136,6 @@ set_outgoing_interfaces_unbound() {
         else
             echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf
             echo "outgoing-interface: $IP" >> "$SCRIPTS"/outgoing.conf
-            #echo "nameserver $IP" >> /etc/resolv.conf
         fi
     done
 }
@@ -151,7 +153,6 @@ Wants=network-online.target
 Type=simple
 ExecStartPre=/bin/sleep 15
 ExecStart=/sbin/dpinger -f -S -i "$i $IP" -R -o "/tmp/health_$i" -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash $SCRIPTS/health_check.sh $i"
-#TimeoutStartSec=0
 Restart=always
 
 [Install]
@@ -189,10 +190,10 @@ find /tmp -type -f -iname "script_lock" -delete && success "$(date) - Removed lo
 # UPDATE & UPGRADE & DEPENDENCIES                                                                             #
 ###############################################################################################################
 header "Update & upgrade $(date)"
-#apt update && success "$(date) - update - Updated" || fatal "$(date) - update - Failed to update"
-#apt full-upgrade -y && success "$(date) - full-upgrade - Upgraded" || fatal "$(date) - full-upgrade - Failed to upgrade"
+apt update && success "$(date) - update - Updated" || fatal "$(date) - update - Failed to update"
+apt full-upgrade -y && success "$(date) - full-upgrade - Upgraded" || fatal "$(date) - full-upgrade - Failed to upgrade"
 header "Dependencies $(date)"
-#apt install -y unbound dnsutils curl redis-server make clang git && success "$(date) - Dependancies - Installed" || fatal "$(date) - Dependancies - Failed to install"
+apt install -y unbound dnsutils curl redis-server make clang git && success "$(date) - Dependancies - Installed" || fatal "$(date) - Dependancies - Failed to install"
 
 ###############################################################################################################
 # GET ALL VALID LTE INTERFACES                                                                                #
@@ -213,39 +214,31 @@ mkdir -p "$SCRIPTS"/ResolvConfBackup && success "$(date) - Create DIR - $SCRIPTS
 header "$(date) - RC.LOCAL"
 
 if [ -f "/etc/rc.local" ]; then
-      warning "$(date) - RC.LOCAL - Exists, backing up to: /etc/backup.rc.local.$DATE"
-      cp /etc/rc.local /etc/backup.rc.local."$DATE"
+    warning "$(date) - RC.LOCAL - Exists, backing up to: /etc/backup.rc.local.$DATE"
+    cp /etc/rc.local /etc/backup.rc.local."$DATE"
 fi
 
 cat > /etc/systemd/system/rc-local.service <<EOF && success "$(date) - Setup RC.LOCAL - Wrote systemd file" || fatal "$(date) - Setup RC.LOCAL - Failed to write systemd file"
 [Unit]
 Description=/etc/rc.local
 ConditionPathExists=/etc/rc.local
+
 [Service]
 Type=forking
 ExecStart=/etc/rc.local start
 TimeoutSec=0
 StandardOutput=tty
 RemainAfterExit=yes
+
 [Install]
 WantedBy=multi-user.target
 EOF
 
 cat > /etc/rc.local <<EOF && success "$(date) - Setup RC.LOCAL - Wrote file" || fatal "$(date) - Setup RC.LOCAL - Failed to write file"
 #!/bin/sh -e
-#
-# rc.local
-#
 # This script is executed at the end of each multiuser runlevel.
 # Make sure that the script will "exit 0" on success or any other
 # value on error.
-#
-# In order to enable or disable this script just change the execution
-# bits.
-#
-# By default this script does nothing.
-# Run info screen on HDMI and Web
-# Start info screen on HDMI and Web
 
 # Populate unbound outgoing interfaces
 /bin/bash $SCRIPTS/set_outgoing_interfaces_onstart.sh &
@@ -303,7 +296,7 @@ if ! [ -f /sbin/dpinger ]; then
 fi
 
 ###############################################################################################################
-# FIX: dhcpcd[5131]: script_runreason: control_queue: No buffer space available                               #
+# FIX: dhcpcd: script_runreason: control_queue: No buffer space available                                     #
 ###############################################################################################################
 if [ -f /proc/sys/net/core/wmem_max ]; then
     cp /proc/sys/net/core/wmem_max /proc/sys/net/core/wmem_max.backup."$DATE" && success "$(date) - Increase buffer space - Backup wmem_max" || error "$(date) - Increase buffer space - Failed to backup wmem_max"
@@ -350,16 +343,15 @@ fi
 # REDIS PERSISTENT DNS CACHE                                                                                  #
 ###############################################################################################################
 if ! crontab -l | grep "transparent_hugepage"; then
-    # Cronjob check
-        crontab -l | { cat; echo '@reboot /bin/echo never > /sys/kernel/mm/transparent_hugepage/enabled'; } | crontab - && success "$(date) - Redis - Set crontab never > /sys/kernel/mm/transparent_hugepage/enabled" || fatal "$(date) - Redis- Failed to set cronjob never > /sys/kernel/mm/transparent_hugepage/enabled"
-        /bin/echo never > /sys/kernel/mm/transparent_hugepage/enabled
+    crontab -l | { cat; echo '@reboot /bin/echo never > /sys/kernel/mm/transparent_hugepage/enabled'; } | crontab - && success "$(date) - Redis - Set crontab never > /sys/kernel/mm/transparent_hugepage/enabled" || fatal "$(date) - Redis- Failed to set cronjob never > /sys/kernel/mm/transparent_hugepage/enabled"
+    /bin/echo never > /sys/kernel/mm/transparent_hugepage/enabled
 fi
 
 systemctl restart redis-server.service && success "$(date) - Setup Redis - Restarted server service" || error "$(date) - Setup  Redis - Failed to restart server service"
 systemctl restart redis.service && success "$(date) - Setup Redis - Restarted service" || error "$(date) - Setup  Redis - Failed to restart service"
 
 ###############################################################################################################
-# CHECK net.core.rmem_max                                                                                     #
+# SET net.core.rmem_max                                                                                       #
 ###############################################################################################################
 if grep 'net.core.rmem_max' /etc/sysctl.conf; then
 	sed -i "/net.core.rmem_max/d" /etc/sysctl.conf && success "$(date) - RMEM MAX - Removed old value from sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to remove old value from sysctl.conf"
@@ -375,10 +367,8 @@ fi
 ###############################################################################################################
 # UNBOUND ROOT HINTS CRONJOB                                                                                  #
 ###############################################################################################################
-# Setup root.hint grab cronjob
 if ! crontab -l | grep "root.hints"; then
-    # Cronjob check
-        crontab -l | { cat; echo '0 6 * * * /usr/bin/curl -o "/etc/unbound/root.hints" "https://www.internic.net/domain/named.cache"'; } | crontab - && success "$(date) - Setup Unbound - Wrote unbound root.hints" || fatal "$(date) - Setup Unbound - Failed to write unbound root.hints"
+    crontab -l | { cat; echo '0 6 * * * /usr/bin/curl -o "/etc/unbound/root.hints" "https://www.internic.net/domain/named.cache"'; } | crontab - && success "$(date) - Setup Unbound - Wrote unbound root.hints" || fatal "$(date) - Setup Unbound - Failed to write unbound root.hints"
 fi
 
 ###############################################################################################################
@@ -392,13 +382,13 @@ cachedb:
     backend: "redis"
     redis-server-host: 127.0.0.1
     redis-server-port: 6379
-    redis-timeout: 100
+    redis-timeout: 60
 
 server:
 ###########################################################################
 # BASIC SETTINGS
 ###########################################################################
-    domain-insecure: "tlvproxy.thesocialproxy.com"
+    # domain-insecure: "tlvproxy.thesocialproxy.com"
     # private-domain: 
 
     # Time to live maximum for RRsets and messages in the cache. If the maximum
@@ -436,7 +426,7 @@ server:
     # the query ID, for speed and thread safety).
     rrset-roundrobin: yes
 
-    # Drop user  privileges after  binding the port.
+    # Drop user  privileges after binding the port.
     username: "unbound"
 
     # Include outgoing interfaces
@@ -775,7 +765,6 @@ systemctl restart unbound.service && success "$(date) - Setup Unbound - Restarte
 ###############################################################################################################
 # RESOLV.CONF                                                                                                 #
 ###############################################################################################################
-#crontab -l | { cat; echo '* * * * * echo "nameserver 127.0.0.1" > /etc/resolv.conf'; } | crontab - && success "$(date) - Resolvconf - Set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set cronjob: 127.0.0.1 as nameserver in /etc/resolv.conf"
 cp /etc/resolv.conf /etc/resolv.backup."$DATE"
 echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf"
 
@@ -785,7 +774,6 @@ chattr +i /etc/resolv.conf && success "$(date) - Setup Unbound - Write protect s
 ###############################################################################################################
 # TEST UNBOUND                                                                                                #
 ###############################################################################################################
-# Clear current DNS cache
 unbound-control flush facebook.com && success "$(date) - DNS Check - Flush DNS" || fatal "$(date) - DNS Check - Flushing DNS failed"
 
 if host facebook.com; then
