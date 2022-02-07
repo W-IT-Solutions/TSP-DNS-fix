@@ -787,7 +787,7 @@ fi
 ###############################################################################################################
 header "$(date) - Dpinger systemd generator"
 
-# Create services for the health check of each interface inside "$SCRIPTS"/dpinger/$interface.sh
+# Create services for the health check of each interface inside /etc/systemd/systemd/health_check_$interface.service
 setup_dpinger
 
 ###############################################################################################################
