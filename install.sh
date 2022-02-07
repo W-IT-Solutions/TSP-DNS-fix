@@ -208,11 +208,73 @@ mkdir -p "$SCRIPTS" && success "$(date) - Create DIR - $SCRIPTS"
 mkdir -p "$SCRIPTS"/ResolvConfBackup && success "$(date) - Create DIR - $SCRIPTS/ResolvConfBackup"
 
 ###############################################################################################################
+# RC.LOCAL                                                                                                    #
+###############################################################################################################
+header "$(date) - RC.LOCAL"
+
+if [ -f "/etc/rc.local" ]; then
+      warning "$(date) - RC.LOCAL - Exists"
+else  
+
+cat > /etc/systemd/system/rc-local.service <<EOF && success "$(date) - Setup RC.LOCAL - Wrote systemd file" || fatal "$(date) - Setup RC.LOCAL - Failed to write systemd file"
+[Unit]
+Description=/etc/rc.local
+ConditionPathExists=/etc/rc.local
+[Service]
+Type=forking
+ExecStart=/etc/rc.local start
+TimeoutSec=0
+StandardOutput=tty
+RemainAfterExit=yes
+SysVStartPriority=99
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat > /etc/rc.local <<EOF && success "$(date) - Setup RC.LOCAL - Wrote file" || fatal "$(date) - Setup RC.LOCAL - Failed to write file"
+#!/bin/sh -e
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# In order to enable or disable this script just change the execution
+# bits.
+#
+# By default this script does nothing.
+# Run info screen on HDMI and Web
+# Start info screen on HDMI and Web
+
+# Populate unbound outgoing interfaces
+/bin/bash $SCRIPTS/set_outgoing_interfaces_onstart.sh
+# Redis
+echo never > /sys/kernel/mm/transparent_hugepage/enabled
+
+exit 0
+EOF
+
+    chmod +x /etc/rc.local && success "$(date) - Setup RC.LOCAL - Permissions" || fatal "$(date) - Setup RC.LOCAL - Failed to set permissions"
+    systemctl enable rc-local && success "$(date) - Setup RC.LOCAL - Enabled service" || fatal "$(date) - Setup RC.LOCAL - Failed to enable service"
+    systemctl start rc-local && success "$(date) - Setup RC.LOCAL - Start service" || fatal "$(date) - Setup RC.LOCAL - Failed to start service"
+fi 
+
+###############################################################################################################
 # GRAB HEALTH_CHECK.SH                                                                                        #
 ###############################################################################################################
 if ! [ -f "$SCRIPTS"/health_check.sh ]; then
     wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh "$SCRIPTS"/health_check.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
     chmod +x "$SCRIPTS"/health_check.sh && success "$(date) - chmod +x health_check.sh - Done" || error "$(date) - chmod +x health_check.sh - Failed"
+fi
+
+###############################################################################################################
+# GRAB SET_OUTGOING_INTERFACES_ONSTART.SH                                                                     #
+###############################################################################################################
+if ! [ -f "$SCRIPTS"/set_outgoing_interfaces_onstart.sh ]; then
+    wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/set_outgoing_interfaces_onstart.sh "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
+    chmod +x "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Done" || error "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Failed"
+    sed -i "s/MAINETHNIC=/MAINETHNIC=$MAINETHNIC/g" "$SCRIPTS"/set_outgoing_interfaces_onstart.sh
 fi
 
 ###############################################################################################################
@@ -295,14 +357,6 @@ fi
 
 systemctl restart redis-server.service && success "$(date) - Setup Redis - Restarted server service" || error "$(date) - Setup  Redis - Failed to restart server service"
 systemctl restart redis.service && success "$(date) - Setup Redis - Restarted service" || error "$(date) - Setup  Redis - Failed to restart service"
-
-###############################################################################################################
-# PUPULATE OUTGOING INTERFACES ON BOOT                                                                        #
-###############################################################################################################
-if ! crontab -l | grep 'set_outgoing_interfaces_onstart.sh'; then
-    # Cronjob check
-        crontab -l | { cat; echo "@reboot /bin/cp $SCRIPTS/outgoing.conf /etc/unbound/outgoing.conf"; } | crontab - && success "$(date) - Unbound - Set cronjob to pupulate outgoing-interfaces on boot" || fatal "$(date) - Unbound - Failed to set cronjob to pupulate outgoing-interfaces on boot"
-fi
 
 ###############################################################################################################
 # CHECK net.core.rmem_max                                                                                     #
