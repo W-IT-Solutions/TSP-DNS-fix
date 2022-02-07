@@ -248,7 +248,7 @@ cat > /etc/rc.local <<EOF && success "$(date) - Setup RC.LOCAL - Wrote file" || 
 # Start info screen on HDMI and Web
 
 # Populate unbound outgoing interfaces
-sleep 15 && /bin/bash $SCRIPTS/set_outgoing_interfaces_onstart.sh &
+/bin/bash $SCRIPTS/set_outgoing_interfaces_onstart.sh &
 # Redis
 echo never > /sys/kernel/mm/transparent_hugepage/enabled
 

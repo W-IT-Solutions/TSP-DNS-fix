@@ -6,6 +6,8 @@ SCRIPTS=
 cat /dev/null > /etc/unbound/outgoing.conf
 cat /dev/null > /tmp/interfaces
 
+sleep 45
+
 readarray -t interfaces < <(ip l | grep enp | grep -v "$MAINETHNIC" | awk '{printf "%s\n",$2}' | sed 's/://g' | sed -r '/^\s*$/d' | cut -f1 -d"@")
 for i in "${interfaces[@]// /}" ; do 
     echo "$i" >> /tmp/interfaces 
