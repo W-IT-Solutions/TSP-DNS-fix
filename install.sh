@@ -145,13 +145,13 @@ dpinger_systemd() {
 cat > /etc/systemd/system/health_check_"$i".service <<EOF && success "$(date) - dpinger_systemd - Dpinger systemd generated for $i" || error "$(date) - dpinger_systemd - Failed to generate Dpinger systemd config for $i"
 [Unit]
 Description=Health check $i
-After=multi-user.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-#ExecStartPre=/bin/sleep 30
+ExecStartPre=/bin/sleep 15
 ExecStart=/sbin/dpinger -f -S -i "$i $IP" -R -o "/tmp/health_$i" -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash $SCRIPTS/health_check.sh $i"
-TimeoutStartSec=0
+#TimeoutStartSec=0
 Restart=always
 
 [Install]
@@ -189,10 +189,10 @@ find /tmp -type -f -iname "script_lock" -delete && success "$(date) - Removed lo
 # UPDATE & UPGRADE & DEPENDENCIES                                                                             #
 ###############################################################################################################
 header "Update & upgrade $(date)"
-apt update && success "$(date) - update - Updated" || fatal "$(date) - update - Failed to update"
-apt full-upgrade -y && success "$(date) - full-upgrade - Upgraded" || fatal "$(date) - full-upgrade - Failed to upgrade"
+#apt update && success "$(date) - update - Updated" || fatal "$(date) - update - Failed to update"
+#apt full-upgrade -y && success "$(date) - full-upgrade - Upgraded" || fatal "$(date) - full-upgrade - Failed to upgrade"
 header "Dependencies $(date)"
-apt install -y unbound dnsutils curl redis-server make clang git && success "$(date) - Dependancies - Installed" || fatal "$(date) - Dependancies - Failed to install"
+#apt install -y unbound dnsutils curl redis-server make clang git && success "$(date) - Dependancies - Installed" || fatal "$(date) - Dependancies - Failed to install"
 
 ###############################################################################################################
 # GET ALL VALID LTE INTERFACES                                                                                #
@@ -213,8 +213,9 @@ mkdir -p "$SCRIPTS"/ResolvConfBackup && success "$(date) - Create DIR - $SCRIPTS
 header "$(date) - RC.LOCAL"
 
 if [ -f "/etc/rc.local" ]; then
-      warning "$(date) - RC.LOCAL - Exists"
-else  
+      warning "$(date) - RC.LOCAL - Exists, backing up to: /etc/backup.rc.local.$DATE"
+      cp /etc/rc.local /etc/backup.rc.local."$DATE"
+fi
 
 cat > /etc/systemd/system/rc-local.service <<EOF && success "$(date) - Setup RC.LOCAL - Wrote systemd file" || fatal "$(date) - Setup RC.LOCAL - Failed to write systemd file"
 [Unit]
@@ -226,7 +227,6 @@ ExecStart=/etc/rc.local start
 TimeoutSec=0
 StandardOutput=tty
 RemainAfterExit=yes
-SysVStartPriority=99
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -248,19 +248,16 @@ cat > /etc/rc.local <<EOF && success "$(date) - Setup RC.LOCAL - Wrote file" || 
 # Start info screen on HDMI and Web
 
 # Populate unbound outgoing interfaces
-/bin/bash $SCRIPTS/set_outgoing_interfaces_onstart.sh
+sleep 15 && /bin/bash $SCRIPTS/set_outgoing_interfaces_onstart.sh &
 # Redis
 echo never > /sys/kernel/mm/transparent_hugepage/enabled
-# temp fix for upstart
-/bin/systemctl restart health_check_*
 
 exit 0
 EOF
 
-    chmod +x /etc/rc.local && success "$(date) - Setup RC.LOCAL - Permissions" || fatal "$(date) - Setup RC.LOCAL - Failed to set permissions"
-    systemctl enable rc-local && success "$(date) - Setup RC.LOCAL - Enabled service" || fatal "$(date) - Setup RC.LOCAL - Failed to enable service"
-    systemctl start rc-local && success "$(date) - Setup RC.LOCAL - Start service" || fatal "$(date) - Setup RC.LOCAL - Failed to start service"
-fi 
+chmod +x /etc/rc.local && success "$(date) - Setup RC.LOCAL - Permissions" || fatal "$(date) - Setup RC.LOCAL - Failed to set permissions"
+systemctl enable rc-local && success "$(date) - Setup RC.LOCAL - Enabled service" || fatal "$(date) - Setup RC.LOCAL - Failed to enable service"
+systemctl start rc-local && success "$(date) - Setup RC.LOCAL - Start service" || fatal "$(date) - Setup RC.LOCAL - Failed to start service"
 
 ###############################################################################################################
 # GRAB HEALTH_CHECK.SH                                                                                        #
@@ -364,14 +361,9 @@ systemctl restart redis.service && success "$(date) - Setup Redis - Restarted se
 ###############################################################################################################
 # CHECK net.core.rmem_max                                                                                     #
 ###############################################################################################################
-cat /dev/null > /tmp/net.core
-echo "# $(grep 'net.core.rmem_max' /etc/sysctl.conf)" > /tmp/net.core && success "$(date) - RMEM MAX - Backed up old value of rmem_max in /tmp/net.core" || fatal "$(date) - RMEM MAX - Failed to backup old value of rmem_max in /tmp/net.core"
-
 if grep 'net.core.rmem_max' /etc/sysctl.conf; then
 	sed -i "/net.core.rmem_max/d" /etc/sysctl.conf && success "$(date) - RMEM MAX - Removed old value from sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to remove old value from sysctl.conf"
 fi
-
-cat /tmp/net.core >> /etc/sysctl.conf && success "$(date) - RMEM MAX - Restored old value of rmem_max in /etc/sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to restore old value of rmem_max in /etc/sysctl.conf"
 
 echo "net.core.rmem_max=1048576" >> /etc/sysctl.conf 
 if sysctl -p | grep 'net.core.rmem_max = 1048576'; then
@@ -799,7 +791,7 @@ unbound-control flush facebook.com && success "$(date) - DNS Check - Flush DNS" 
 if host facebook.com; then
     success "$(date) - DNS Check - DNS is working via unbound!"
 else
-    fatal "$(date) - DNS Check - DNS is not working via unbound!"
+    warning "$(date) - DNS Check - DNS is not working via unbound! Please test after the script is done with: host facebook.com"
 fi
 
 ###############################################################################################################

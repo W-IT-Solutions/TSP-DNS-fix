@@ -192,4 +192,4 @@ fi
 ###############################################################################################################
 success "$(date) - $INTERFACE - Script finished - $COUNTER Warning(s) and / or error(s)"
 
-exit 1 # For systemd to pick up on-failure (only triggers on exit code 1)
+exit 0
