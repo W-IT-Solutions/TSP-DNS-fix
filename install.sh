@@ -149,7 +149,7 @@ After=multi-user.target
 
 [Service]
 Type=simple
-ExecStartPre=/bin/sleep 30
+#ExecStartPre=/bin/sleep 30
 ExecStart=/sbin/dpinger -f -S -i "$i $IP" -R -o "/tmp/health_$i" -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash $SCRIPTS/health_check.sh $i"
 TimeoutStartSec=0
 Restart=always
@@ -251,6 +251,8 @@ cat > /etc/rc.local <<EOF && success "$(date) - Setup RC.LOCAL - Wrote file" || 
 /bin/bash $SCRIPTS/set_outgoing_interfaces_onstart.sh
 # Redis
 echo never > /sys/kernel/mm/transparent_hugepage/enabled
+# temp fix for upstart
+/bin/systemctl restart health_check_*
 
 exit 0
 EOF
@@ -275,7 +277,8 @@ if ! [ -f "$SCRIPTS"/set_outgoing_interfaces_onstart.sh ]; then
     wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/set_outgoing_interfaces_onstart.sh "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
     chmod +x "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Done" || error "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Failed"
     sed -i "s/MAINETHNIC=/MAINETHNIC=$MAINETHNIC/g" "$SCRIPTS"/set_outgoing_interfaces_onstart.sh
-fi
+    sed -i "s/SCRIPTS=/SCRIPTS=$SCRIPTS/g" "$SCRIPTS"/set_outgoing_interfaces_onstart.sh
+fi 
 
 ###############################################################################################################
 # INSTALL DPINGER                                                                                             #
@@ -361,6 +364,7 @@ systemctl restart redis.service && success "$(date) - Setup Redis - Restarted se
 ###############################################################################################################
 # CHECK net.core.rmem_max                                                                                     #
 ###############################################################################################################
+cat /dev/null > /tmp/net.core
 echo "# $(grep 'net.core.rmem_max' /etc/sysctl.conf)" > /tmp/net.core && success "$(date) - RMEM MAX - Backed up old value of rmem_max in /tmp/net.core" || fatal "$(date) - RMEM MAX - Failed to backup old value of rmem_max in /tmp/net.core"
 
 if grep 'net.core.rmem_max' /etc/sysctl.conf; then

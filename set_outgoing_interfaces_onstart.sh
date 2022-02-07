@@ -1,7 +1,7 @@
 #!/bin/bash
 # Clear outgoing interfaces
-MAINETHNIC="enp0s31f6"
-SCRIPTS="/var/scripts"
+MAINETHNIC=
+SCRIPTS=
 
 cat /dev/null > /etc/unbound/outgoing.conf
 cat /dev/null > /tmp/interfaces
