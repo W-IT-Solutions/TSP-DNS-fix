@@ -43,6 +43,7 @@ APTIPV4="1" # Force APT to use IPV4, needed as IPV6 DNS lookups on LTE seem to f
 #TIME="10" # 10 Seconds measure period for dpinger
 LOSS="15" # Loss % threshold
 #LATENCY="200m" # latency threshold in ms, use only m as in NUMBERm and not NUMBERms in var.
+SCRIPTS="/var/scripts"
 # Static
 DATE=$(date +%d-%b-%Y-%H%M)
 COUNTER="0"
@@ -114,7 +115,7 @@ debug_mode() {
 # GET ALL ENP* INTERFACES EXCLUDING $MAINETHNIC AND LOOPBACK                                                  #
 ###############################################################################################################
 get_interfaces() {
-    readarray -t interfaces < <(ip l | grep enp | grep -v "$MAINETHNIC" |  awk '{printf "%s\n",$2}' | sed 's/://g' | sed -r '/^\s*$/d' | cut -f1 -d"@")
+    readarray -t interfaces < <(ip l | grep enp | grep -v "$MAINETHNIC" | awk '{printf "%s\n",$2}' | sed 's/://g' | sed -r '/^\s*$/d' | cut -f1 -d"@")
     for i in "${interfaces[@]// /}" ; do 
         echo "$i" >> /tmp/interfaces && success "$(date) - get_interfaces - Found interface: $i"
     done
@@ -131,6 +132,7 @@ set_outgoing_interfaces_unbound() {
             error "$(date) - Setup Unbound - No IP on $INTERFACE"
         else
             echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf
+            echo "outgoing-interface: $IP" >> "$SCRIPTS"/outgoing.conf
             #echo "nameserver $IP" >> /etc/resolv.conf
         fi
     done
@@ -143,16 +145,14 @@ dpinger_systemd() {
 cat > /etc/systemd/system/health_check_"$i".service <<EOF && success "$(date) - dpinger_systemd - Dpinger systemd generated for $i" || error "$(date) - dpinger_systemd - Failed to generate Dpinger systemd config for $i"
 [Unit]
 Description=Health check $i
-After=network.target
+After=multi-user.target
 
 [Service]
 Type=simple
-ExecStartPre=/bin/sleep 60
-ExecStart=/sbin/dpinger -f -S -i "dpinger $i" -R -o "/tmp/health_$i" -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash /var/scripts/health_check.sh $i"
-Restart=on-failure
-StartLimitBurst=2
-# Restart, but not more than once every minute and a half
-StartLimitInterval=90
+ExecStartPre=/bin/sleep 30
+ExecStart=/sbin/dpinger -f -S -i "$i $IP" -R -o "/tmp/health_$i" -L $LOSS -B $IP 1.1.1.1 -C "/bin/bash $SCRIPTS/health_check.sh $i"
+TimeoutStartSec=0
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
@@ -204,15 +204,15 @@ get_interfaces
 ###############################################################################################################
 # CREATE DIRECTORIES                                                                                          #
 ###############################################################################################################
-mkdir -p /var/scripts && success "$(date) - Create DIRs - Scripts"
-mkdir -p /var/scripts/ResolvConfBackup && success "$(date) - Create DIRs - Scripts/ResolvConfBackup"
+mkdir -p "$SCRIPTS" && success "$(date) - Create DIR - $SCRIPTS"
+mkdir -p "$SCRIPTS"/ResolvConfBackup && success "$(date) - Create DIR - $SCRIPTS/ResolvConfBackup"
 
 ###############################################################################################################
 # GRAB HEALTH_CHECK.SH                                                                                        #
 ###############################################################################################################
-if ! [ -f /var/scripts/health_check.sh ]; then
-    wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh /var/scripts/health_check.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
-    chmod +x /var/scripts/health_check.sh && success "$(date) - chmod +x health_check.sh - Done" || error "$(date) - chmod +x health_check.sh - Failed"
+if ! [ -f "$SCRIPTS"/health_check.sh ]; then
+    wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh "$SCRIPTS"/health_check.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
+    chmod +x "$SCRIPTS"/health_check.sh && success "$(date) - chmod +x health_check.sh - Done" || error "$(date) - chmod +x health_check.sh - Failed"
 fi
 
 ###############################################################################################################
@@ -277,15 +277,15 @@ fi
 ###############################################################################################################
 # Remove this hook file since it overrides /etc/resolv.conf with rubbish
 if [ -f /etc/dhcp/dhclient-enter-hooks.d/resolvconf  ]; then
-    mv /etc/dhcp/dhclient-enter-hooks.d/resolvconf /var/scripts/ResolvConfBackup/resolvconf && success "$(date) - Resolvconf - Removed dhcp resolvconf hook" || warning "$(date) - Resolvconf - Failed to remove dhcp resolvconf hook"
+    mv /etc/dhcp/dhclient-enter-hooks.d/resolvconf "$SCRIPTS"/ResolvConfBackup/resolvconf && success "$(date) - Resolvconf - Removed dhcp resolvconf hook" || warning "$(date) - Resolvconf - Failed to remove dhcp resolvconf hook"
 fi
 
 if [ -f /lib/dhcpcd/dhcpcd-hooks/20-resolv.conf ]; then
-    mv /lib/dhcpcd/dhcpcd-hooks/20-resolv.conf /var/scripts/ResolvConfBackup/20-resolv.conf && success "$(date) - Resolvconf - Removed dhcpcd resolvconf hook" || warning "$(date) - Resolvconf - Failed to remove dhcpcd resolvconf hook"
+    mv /lib/dhcpcd/dhcpcd-hooks/20-resolv.conf "$SCRIPTS"/ResolvConfBackup/20-resolv.conf && success "$(date) - Resolvconf - Removed dhcpcd resolvconf hook" || warning "$(date) - Resolvconf - Failed to remove dhcpcd resolvconf hook"
 fi
 
 ###############################################################################################################
-# REDIS                                                                                                       #
+# REDIS PERSISTENT DNS CACHE                                                                                  #
 ###############################################################################################################
 if ! crontab -l | grep "transparent_hugepage"; then
     # Cronjob check
@@ -297,21 +297,23 @@ systemctl restart redis-server.service && success "$(date) - Setup Redis - Resta
 systemctl restart redis.service && success "$(date) - Setup Redis - Restarted service" || error "$(date) - Setup  Redis - Failed to restart service"
 
 ###############################################################################################################
-# UNBOUND                                                                                                     #
+# PUPULATE OUTGOING INTERFACES ON BOOT                                                                        #
 ###############################################################################################################
-# Setup root.hint grab cronjob
-if ! crontab -l | grep "root.hints"; then
+if ! crontab -l | grep 'set_outgoing_interfaces_onstart.sh'; then
     # Cronjob check
-        crontab -l | { cat; echo '0 6 * * * /usr/bin/curl -o "/etc/unbound/root.hints" "https://www.internic.net/domain/named.cache"'; } | crontab - && success "$(date) - Setup Unbound - Wrote unbound root.hints" || fatal "$(date) - Setup Unbound - Failed to write unbound root.hints"
+        crontab -l | { cat; echo "@reboot /bin/cp $SCRIPTS/outgoing.conf /etc/unbound/outgoing.conf"; } | crontab - && success "$(date) - Unbound - Set cronjob to pupulate outgoing-interfaces on boot" || fatal "$(date) - Unbound - Failed to set cronjob to pupulate outgoing-interfaces on boot"
 fi
 
-# Check and increase net.core.rmem_max
+###############################################################################################################
+# CHECK net.core.rmem_max                                                                                     #
+###############################################################################################################
 echo "# $(grep 'net.core.rmem_max' /etc/sysctl.conf)" > /tmp/net.core && success "$(date) - RMEM MAX - Backed up old value of rmem_max in /tmp/net.core" || fatal "$(date) - RMEM MAX - Failed to backup old value of rmem_max in /tmp/net.core"
-cat /tmp/net.core >> /etc/sysctl.conf && success "$(date) - RMEM MAX - Backed up old value of rmem_max in /etc/sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to backup old value of rmem_max in /etc/sysctl.conf"
 
-if $SYSCTL; then
+if grep 'net.core.rmem_max' /etc/sysctl.conf; then
 	sed -i "/net.core.rmem_max/d" /etc/sysctl.conf && success "$(date) - RMEM MAX - Removed old value from sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to remove old value from sysctl.conf"
 fi
+
+cat /tmp/net.core >> /etc/sysctl.conf && success "$(date) - RMEM MAX - Restored old value of rmem_max in /etc/sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to restore old value of rmem_max in /etc/sysctl.conf"
 
 echo "net.core.rmem_max=1048576" >> /etc/sysctl.conf 
 if sysctl -p | grep 'net.core.rmem_max = 1048576'; then
@@ -320,7 +322,18 @@ else
 	fatal "$(date) - Setup Unbound - Failed to increase net.core.rmem_max"
 fi
 
-# Unbound config
+###############################################################################################################
+# UNBOUND ROOT HINTS CRONJOB                                                                                  #
+###############################################################################################################
+# Setup root.hint grab cronjob
+if ! crontab -l | grep "root.hints"; then
+    # Cronjob check
+        crontab -l | { cat; echo '0 6 * * * /usr/bin/curl -o "/etc/unbound/root.hints" "https://www.internic.net/domain/named.cache"'; } | crontab - && success "$(date) - Setup Unbound - Wrote unbound root.hints" || fatal "$(date) - Setup Unbound - Failed to write unbound root.hints"
+fi
+
+###############################################################################################################
+# UNBOUND                                                                                                     #
+###############################################################################################################
 cat > /etc/unbound/unbound.conf <<EOF && success "$(date) - Setup Unbound - Wrote unbound config" || fatal "$(date) - Setup Unbound - Failed to write unbound config"
 ###########################################################################
 # Redis cache
@@ -699,6 +712,11 @@ if [ -f /etc/unbound/outgoing.conf ]; then
     rm -rf /etc/unbound/outgoing.conf 
 fi
 
+# Remove outgoing.conf backup
+if [ -f "$SCRIPTS"/outgoing.conf ]; then
+    rm "$SCRIPTS"/outgoing.conf
+fi
+
 set_outgoing_interfaces_unbound
 
 systemctl enable unbound.service && success "$(date) - Setup Unbound - Enabled service" || fatal "$(date) - Setup Unbound - Failed to enable service"
@@ -731,7 +749,7 @@ fi
 ###############################################################################################################
 header "$(date) - Dpinger systemd generator"
 
-# Create services for the health check of each interface inside /var/scripts/dpinger/$interface.sh
+# Create services for the health check of each interface inside "$SCRIPTS"/dpinger/$interface.sh
 setup_dpinger
 
 ###############################################################################################################

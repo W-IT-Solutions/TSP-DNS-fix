@@ -77,7 +77,7 @@ WAITSEC="10" # Loop time, every 10 seconds
 #METRIC=$(route -n | grep 'UG' | grep "$INTERFACE" | awk '{printf "%s\n",$5}')
 #octet=$(ip address show dev "$INTERFACE" | grep inet | awk -F "[/.]" '{print $4;}')
 #tablenum=$(( $octet + 100 ))
-LOSS="5"
+LOSS="15"
 
 # Dpinger vars
 dest_addr="$4"
@@ -91,34 +91,7 @@ if [ -n "$IP" ]; then
 else
 	fatal "$(date) - $INTERFACE - IP variable not detected"
 fi
-###############################################################################################################
-# STOCK SNIPPITS                                                                                              #
-###############################################################################################################
-# && success "$(date) - $INTERFACE - INIT - Debug set" || fatal "$(date) - $INTERFACE - INIT - Setting debug failed"
 
-###############################################################################################################
-# LEGACY                                                                                                      #
-###############################################################################################################
-################################ Delete routes | only for reference
-#ip route delete default via "$GW" dev "$INTERFACE" src "$IP" && success "$(date) - $INTERFACE - Deleted routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to delete routes for $INTERFACE"
-#route -vF del -net "$NETWORK".0/24 gw 0.0.0.0 
-#ip rule del from "$NETWORK"."${octet}" table "${tablenum}"
-################################ Bring down the interface | only for reference
-#ip link set "$INTERFACE" down && success "$(date) - $INTERFACE - $INTERFACE is brought down" || fatal "$(date) - $INTERFACE - Failed to bring down $INTERFACE"
-################################ Add routes | only for reference
-#ip route add default via "$GW" dev "$INTERFACE" src "$NETWORK"."$octet" table "$tablenum" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
-#if ! ip rule show | grep -q "$NETWORK.${octet}"; then
-	#ip rule add from "$NETWORK"."${octet}" table "${tablenum}" && success "$(date) - $INTERFACE - Added routes for $INTERFACE" || fatal "$(date) - $INTERFACE - Failed to add routes for $INTERFACE"
-#fi
-################################ Automate based on alert_flag | only for reference
-# the alert_cmd is invoked as "alert_cmd dest_addr alarm_flag latency_avg loss_avg"
-# alarm_flag is set to 1 if either latency or loss is in alarm state
-# alarm_flag will return to 0 when both have have cleared alarm state
-#if [ "$alarm_flag" -eq 1 ]; then
-#    my_alarm_cmd 
-#else
-#    my_clear_cmd # "$dest_addr" "$latency_avg" "$loss_avg"
-#fi
 ###############################################################################################################
 # ROOT CHECK                                                                                                  #
 ###############################################################################################################
@@ -149,44 +122,41 @@ debug_mode
 root_check
 # Remove when verified
 header "$(date) - $INTERFACE - INIT - Use Dpinger variables: dest_addr $dest_addr alarm_flag $alarm_flag latency_avg $latency_avg loss_avg $loss_avg"
+
 ###############################################################################################################
 # LOOP: CHECK LINK AND ACT                                                                                    #
 ###############################################################################################################
 while :
 do
-	header "$(date) - $INTERFACE - Loop, checking for connectivity"
-
-	# Check the loss % on the interface
 	CONNECTION=$(cat "/tmp/health_$INTERFACE" | awk '{print $5}')
-
 	if ! [ -f /tmp/health_"$INTERFACE" ]; then
 		error "$(date) - $INTERFACE - Failed to read /tmp/health_$INTERFACE"
 	else
-		success "$(date) - $INTERFACE - Read /tmp/health_$INTERFACE: IP: $IP loss % is at: $CONNECTION"
+		success "$(date) - $INTERFACE - Read /tmp/health_$INTERFACE: IP: $IP loss is: $CONNECTION%"
 	fi
 
 	if [ "$CONNECTION" == "0" ]; then
-		# If loss is 0% set original metric value back
-		##ifmetric "$INTERFACE" "$METRIC" && success "$(date) - $INTERFACE - IFMETRIC set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
-		
+
 		if grep -q "$IP" /etc/unbound/outgoing.conf; then
-			warning "$(date) - $INTERFACE - Interface is present in /etc/unbound/outgoing.conf already. Moving on."
+			warning "$(date) - $INTERFACE - Interface is present in /etc/unbound/outgoing.conf already."
 		else
-			# Change to set unbound interfaces and reload
+			# Set unbound interfaces and reload
 			echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf
 			unbound-control dump_cache > /etc/unbound/cache.file && success "$(date) - Backed up unbound cache to /etc/unbound/cache.file" || error "$(date) - Failed to backup unbound cache to /etc/unbound/cache.file"
 			unbound-control reload && success "$(date) - Reload unbound" || error "$(date) - Failed to reload unbound"
 			unbound-control load_cache < /etc/unbound/cache.file && success "$(date) - Loaded unbound cache from /etc/unbound/cache.file" || error "$(date) - Failed to load unbound cache from /etc/unbound/cache.file"
 		fi
 
+		# If loss is 0% set original metric value back
+		##ifmetric "$INTERFACE" "$METRIC" && success "$(date) - $INTERFACE - IFMETRIC set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
+
 		# Abandon the loop.
 		success "$(date) - $INTERFACE - Break the loop"
 		break
 
 	elif [ "$CONNECTION" -gt "$LOSS" ]; then
-		error "$(date) - $INTERFACE - Loss % is still higher then threshold - $CONNECTION -gt 5"
+		error "$(date) - $INTERFACE - Loss is still higher then threshold - $CONNECTION% -gt 15%"
 
-		# Change to set unbound interfaces and reload
 		if grep "$IP" /etc/unbound/outgoing.conf; then
 			sed -i "/$IP/d" /etc/unbound/outgoing.conf && success "$(date) - Removed outgoing interface $IP from /etc/unbound/outgoing.conf" || error "$(date) - Failed to removed outgoing interface $IP from /etc/unbound/outgoing.conf" || 
 			unbound-control dump_cache > /etc/unbound/cache.file && success "$(date) - Backed up unbound cache to /etc/unbound/cache.file" || error "$(date) - Failed to backup unbound cache to /etc/unbound/cache.file"
@@ -206,17 +176,20 @@ do
 		#fi
 	fi
 
-	header "$(date) - $INTERFACE - Eat, sleep, bash, repeat"
 	sleep "$WAITSEC"
+
 done
+
 ###############################################################################################################
 # REMOVE LOCK                                                                                                 #
 ###############################################################################################################
 if [ -f /tmp/.script_lock_"$INTERFACE" ]; then
     rm /tmp/.script_lock_"$INTERFACE" && success "$(date) - $INTERFACE - Removed lock file" || fatal "$(date) - $INTERFACE - Failed to remove lock file"
 fi
+
 ###############################################################################################################
 # END                                                                                                         #
 ###############################################################################################################
 success "$(date) - $INTERFACE - Script finished - $COUNTER Warning(s) and / or error(s)"
+
 exit 1 # For systemd to pick up on-failure (only triggers on exit code 1)
