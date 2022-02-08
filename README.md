@@ -54,6 +54,8 @@ This can be enabled (uncommented in health_check.sh) after a few tests (worked s
 Notice the query time in the dig commands, if its an answer and has a response time of 0, it is served from cache (local unbound). When its in the 10 to 50ms range it got a reply from Redis cache and any higher will be the upstream server.
 So to properly test DNS resolving either clear the cache or, query a new domain that is not cached yet.
 Every interface that is up and has a proper LTE connection is able to do lookups on `INTERFACEIP:53`
+
+### Make query to unbound on specific interface that in turn tries all available interfaces
 * `dig -p 53 facebook.com @192.168.8.11`
 
 ### Make query to unbound that in turn tries all available interfaces
