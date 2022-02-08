@@ -184,7 +184,7 @@ setup_dpinger(){
 header "INIT $(date)"
 debug_mode
 root_check && success "$(date) - INIT - Root check ok"
-find /tmp -type -f -iname "script_lock" -delete && success "$(date) - Removed lock file" || error "$(date) - Failed to remove lock file"
+find /tmp -type -f -iname "script_lock" -delete && success "$(date) - Removed lock file" || success "$(date) - No lock file found to remove"
 
 ###############################################################################################################
 # UPDATE & UPGRADE & DEPENDENCIES                                                                             #
@@ -256,7 +256,7 @@ systemctl start rc-local && success "$(date) - Setup RC.LOCAL - Start service" |
 # GRAB HEALTH_CHECK.SH                                                                                        #
 ###############################################################################################################
 if ! [ -f "$SCRIPTS"/health_check.sh ]; then
-    wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh "$SCRIPTS"/health_check.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
+    curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh > "$SCRIPTS"/health_check.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
     chmod +x "$SCRIPTS"/health_check.sh && success "$(date) - chmod +x health_check.sh - Done" || error "$(date) - chmod +x health_check.sh - Failed"
 fi
 
@@ -264,10 +264,10 @@ fi
 # GRAB SET_OUTGOING_INTERFACES_ONSTART.SH                                                                     #
 ###############################################################################################################
 if ! [ -f "$SCRIPTS"/set_outgoing_interfaces_onstart.sh ]; then
-    wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/set_outgoing_interfaces_onstart.sh "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
+    curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/set_outgoing_interfaces_onstart.sh > "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
     chmod +x "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Done" || error "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Failed"
-    sed -i "s/MAINETHNIC=/MAINETHNIC=$MAINETHNIC/g" "$SCRIPTS"/set_outgoing_interfaces_onstart.sh
-    sed -i "s/SCRIPTS=/SCRIPTS=$SCRIPTS/g" "$SCRIPTS"/set_outgoing_interfaces_onstart.sh
+    sed -i "s|MAINETHNIC=|MAINETHNIC=$MAINETHNIC|g" "$SCRIPTS"/set_outgoing_interfaces_onstart.sh
+    sed -i "s|SCRIPTS=|SCRIPTS=$SCRIPTS|g" "$SCRIPTS"/set_outgoing_interfaces_onstart.sh
 fi 
 
 ###############################################################################################################
@@ -299,8 +299,8 @@ fi
 # FIX: dhcpcd: script_runreason: control_queue: No buffer space available                                     #
 ###############################################################################################################
 if [ -f /proc/sys/net/core/wmem_max ]; then
-    cp /proc/sys/net/core/wmem_max /proc/sys/net/core/wmem_max.backup."$DATE" && success "$(date) - Increase buffer space - Backup wmem_max" || error "$(date) - Increase buffer space - Failed to backup wmem_max"
-    echo "638976" > /proc/sys/net/core/wmem_max && success "$(date) - Increase buffer space - wmem_max set to 638976, 3 times its original value" || warning "$(date) - Increase buffer space - Failed to set wmem_max"
+    cp /proc/sys/net/core/wmem_max /proc/sys/net/core/wmem_max.backup."$DATE" && success "$(date) - Increase buffer space - Backup wmem_max" || warning "$(date) - Increase buffer space - wmem_max not present for backup"
+    echo "638976" > /proc/sys/net/core/wmem_max && success "$(date) - Increase buffer space - wmem_max set to 638976" || warning "$(date) - Increase buffer space - Failed to set wmem_max"
 else
     warning "$(date) - Increase buffer space - wmem_max not present"
 fi
@@ -330,7 +330,7 @@ fi
 ###############################################################################################################
 # CLEAR RESOLVCONF HOOK SCRIPTS                                                                               #
 ###############################################################################################################
-# Remove this hook file since it overrides /etc/resolv.conf with rubbish
+# Remove hook file since it overrides /etc/resolv.conf with rubbish
 if [ -f /etc/dhcp/dhclient-enter-hooks.d/resolvconf  ]; then
     mv /etc/dhcp/dhclient-enter-hooks.d/resolvconf "$SCRIPTS"/ResolvConfBackup/resolvconf && success "$(date) - Resolvconf - Removed dhcp resolvconf hook" || warning "$(date) - Resolvconf - Failed to remove dhcp resolvconf hook"
 fi
@@ -766,7 +766,7 @@ systemctl restart unbound.service && success "$(date) - Setup Unbound - Restarte
 # RESOLV.CONF                                                                                                 #
 ###############################################################################################################
 cp /etc/resolv.conf /etc/resolv.backup."$DATE"
-echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf"
+echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf, probably is write protected by: chattr -i"
 
 # Write protect /etc/resolv.conf
 chattr +i /etc/resolv.conf && success "$(date) - Setup Unbound - Write protect set on /etc/resolv.conf" || fatal "$(date) - Setup Unbound - Failed to to set write protect on /etc/resolv.conf"
