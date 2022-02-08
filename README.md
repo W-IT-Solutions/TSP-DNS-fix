@@ -28,7 +28,7 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 So some might work, some might not. So when the main metric interface is down, by connOff.sh or LTE endpoint failure, the default routes for that interface are still in place but, obviously not working. 
 When not changing the metric of the failing interface, the system will use the IP and routes setup on that interface for outgoing requests, thus will fail no matter what. 
 
-Its not possible to send traffic out all interfaces at once, for this we'd need bonding, but this is not workable with the current setup.
+Its not possible to send traffic out all interfaces at once, for this we'd need bonding.
 
 ## Workflow
 `install.sh` Installs unbound DNS caching server, listining on all interfaces + DNS over TLS (Cloudflare) + outgoing DNS queries on all (active) interfaces and lets the system use unbound as its primary DNS server https://www.cloudflare.com/learning/dns/dns-over-tls/
