@@ -51,7 +51,10 @@ Current logic:
 `If $interface loss % (avg. over 60 seconds) -gt 15% - remove interface from the outgoing.conf and reload.`
 `If $interface loss % (avg. over 60 seconds) -eq 0% - add the interface in outgoing.conf and reload.`
 
-Note: on a system with only 3 working modems this might result in an occasional failure to resolve any names (At the time of testing 4 out of 4004 attempts, unbound-check.sh). Since the link quality varies during the day in regards to avg. Loss %. In other words, the more modems, the better chance of having multiple 0% loss modems. Might be needed to tweak the logic settings mentioned above.
+Note: on a system with only 3 working modems this might result in an occasional failure to resolve any names. Since the link quality varies during the day in regards to avg. Loss %. In other words, the more modems, the better chance of having multiple 0% loss modems. Might be needed to tweak the logic settings mentioned above.
+At the time of testing 1 interface was at 0% loss, 99% of the time and 2 where fluctuating between 0% and 30% throughout the day and 4 out of 4004 DNS query attempts failed because of this 1% downtime of the first interface (that performed best), see unbound-check.sh.
+You obviously don't want DNS requests going of those 5%+ loss interfaces since that will negativly impact the user experience.
+This won't be an issue on the productions systems because of the # of modems
 
 So this partly solves the issues, the remaining issue is that when we bring down the main interface (metric wise) with bash connOff.sh $IP
 The DNS keeps working but, the system doesn't know the LTE endpoint is down since no program/script informs the system that that is the case. While still trying to route traffic over that interface for eg. `apt update` or `curl website.com`. But that will fail.
