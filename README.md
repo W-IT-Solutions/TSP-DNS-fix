@@ -65,6 +65,11 @@ This won't be an issue on the productions systems because of the # of modems
 ## Tested on:
 `Linux raspberry 4.19.0-18-amd64 #1 SMP Debian 4.19.208-1 (2021-09-29) x86_64 GNU/Linux`
 
+## Download the script, inspect it, adjust variable's and run
+* `wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/install.sh`
+* `nano install.sh`
+* `bash install.sh`
+
 ## Commands to verify working unbound
 Notice the query time in the dig commands, if its an answer and has a response time of 0, it is served from cache (local unbound). When its in the 10 to 50ms range it got a reply from Redis cache and any higher will be the upstream server.
 So to properly test DNS resolving either clear the cache or, query a new domain that is not cached yet.
@@ -79,11 +84,6 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 ## Flush unbound cache
 * `unbound-control flush`
 * `unbound-control flush domain.com`
-
-## Download the script, inspect it, adjust variable's and run
-* `wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/install.sh`
-* `nano install.sh`
-* `bash install.sh`
 
 ## Log files
 * `/var/log/DNS_fix_install.log`
