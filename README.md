@@ -2,7 +2,14 @@
 Debian server with multiple ~80 LTE modems attached for WAN connectivity and no wired/wifi connection to WAN or LAN.
 
 # Problem
-On boot dhcpcd assigns a metric to each interface not taking the performance of that interface in to account.
+On boot, dhcpcd assigns a metric to each interface not taking the performance or availability of that interface in to account since its setup as static in dhcpcd.conf.
+
+```
+Metrics are used to prefer an interface over another one, lowest
+wins. dhcpcd will supply a default metric of 200 + if_nametoindex(3).  
+An extra 100 will be added for wireless interfaces. 
+```
+
 Normally we'd see a list like this:
 ```Kernel IP routing table
 Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
