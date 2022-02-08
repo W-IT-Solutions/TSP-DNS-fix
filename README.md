@@ -54,22 +54,19 @@ This can be enabled (uncommented in health_check.sh) after a few tests (worked s
 Notice the query time in the dig commands, if its an answer and has a response time of 0, it is served from cache (local unbound). When its in the 10 to 50ms range it got a reply from Redis cache and any higher will be the upstream server.
 So to properly test DNS resolving either clear the cache or, query a new domain that is not cached yet.
 Every interface that is up and has a proper LTE connection is able to do lookups on `INTERFACEIP:53`
-
-`dig -p 53 facebook.com @192.168.8.11`
+* `dig -p 53 facebook.com @192.168.8.11`
 
 ### Make query to unbound that in turn tries all available interfaces
-`dig -p 53 facebook.com @127.0.0.1`
+* `dig -p 53 facebook.com @127.0.0.1`
 
 ## Flush unbound cache
-`unbound-control flush`
-`unbound-control flush domain.com`
+* `unbound-control flush`
+* `unbound-control flush domain.com`
 
 # Download the script, inspect it, adjust variable's and run
-`wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/install.sh`
-
-`nano install.sh`
-
-`bash install.sh`
+* `wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/install.sh`
+* `nano install.sh`
+* `bash install.sh`
 
 # Log files
 * `/var/log/DNS_fix_install.log`
@@ -79,14 +76,14 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 * `tail -f /var/log/syslog | grep unbound | grep -v 'bol.com'`
 
 # Misc commands
-`systemctl status health_check_*`
-`cat /etc/unbound/unbound.conf`
-`cat /etc/unbound/outgoing.conf`
-`cat /etc/resolvconf.conf`
-`cat /etc/resolv.conf`
-`cat /etc/systemd/resolved.service`
-`cat /etc/rc.local`
-`cat /var/scripts/*.sh`
+* `systemctl status health_check_*`
+* `cat /etc/unbound/unbound.conf`
+* `cat /etc/unbound/outgoing.conf`
+* `cat /etc/resolvconf.conf`
+* `cat /etc/resolv.conf`
+* `cat /etc/systemd/resolved.service`
+* `cat /etc/rc.local`
+* `cat /var/scripts/*.sh`
 
 
 ## showcase of working DNS with main interface down:
