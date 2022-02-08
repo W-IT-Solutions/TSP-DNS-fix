@@ -112,7 +112,7 @@ root_check() {
 ###############################################################################################################
 debug_mode() {
 	if [ "$DEBUG" -eq 1 ]; then
-		set -ex && success "$(date) - $INTERFACE - INIT - Debug set" || error "$(date) - $INTERFACE - INIT - Setting debug failed"
+		set -ex && success "$(date) - $INTERFACE $IP - INIT - Debug set" || error "$(date) - $INTERFACE $IP - INIT - Setting debug failed"
 	fi
 }
 ###############################################################################################################
@@ -121,7 +121,7 @@ debug_mode() {
 debug_mode
 root_check
 # Remove when verified
-header "$(date) - $INTERFACE - INIT - Use Dpinger variables: dest_addr $dest_addr alarm_flag $alarm_flag latency_avg $latency_avg loss_avg $loss_avg"
+header "$(date) - $INTERFACE $IP - INIT - Use Dpinger variables: dest_addr $dest_addr alarm_flag $alarm_flag latency_avg $latency_avg loss_avg $loss_avg"
 
 ###############################################################################################################
 # LOOP: CHECK LINK AND ACT                                                                                    #
@@ -132,13 +132,13 @@ do
 	if ! [ -f /tmp/health_"$INTERFACE" ]; then
 		error "$(date) - $INTERFACE - Failed to read /tmp/health_$INTERFACE"
 	else
-		success "$(date) - $INTERFACE - Read /tmp/health_$INTERFACE: IP: $IP loss is: $CONNECTION%"
+		success "$(date) - $INTERFACE $IP - Loss: $CONNECTION%"
 	fi
 
 	if [ "$CONNECTION" == "0" ]; then
 
 		if grep -q "$IP" /etc/unbound/outgoing.conf; then
-			warning "$(date) - $INTERFACE - Interface is present in /etc/unbound/outgoing.conf already."
+			warning "$(date) - $INTERFACE $IP - Interface is present in /etc/unbound/outgoing.conf already."
 		else
 			# Set unbound interfaces and reload
 			echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf
@@ -151,11 +151,11 @@ do
 		##ifmetric "$INTERFACE" "$METRIC" && success "$(date) - $INTERFACE - IFMETRIC set to old value of: $METRIC" || fatal "$(date) - $INTERFACE - Failed to set metric to old value of: $METRIC"
 
 		# Abandon the loop.
-		success "$(date) - $INTERFACE - Break the loop"
+		success "$(date) - $INTERFACE $IP - Break the loop"
 		break
 
 	elif [ "$CONNECTION" -gt "$LOSS" ]; then
-		error "$(date) - $INTERFACE - Loss is still higher then threshold - $CONNECTION% -gt 15%"
+		error "$(date) - $INTERFACE $IP - Still down, loss: $CONNECTION% -gt 15%"
 
 		if grep "$IP" /etc/unbound/outgoing.conf; then
 			sed -i "/$IP/d" /etc/unbound/outgoing.conf && success "$(date) - Removed outgoing interface $IP from /etc/unbound/outgoing.conf" || error "$(date) - Failed to removed outgoing interface $IP from /etc/unbound/outgoing.conf" || 
@@ -184,12 +184,12 @@ done
 # REMOVE LOCK                                                                                                 #
 ###############################################################################################################
 if [ -f /tmp/.script_lock_"$INTERFACE" ]; then
-    rm /tmp/.script_lock_"$INTERFACE" && success "$(date) - $INTERFACE - Removed lock file" || fatal "$(date) - $INTERFACE - Failed to remove lock file"
+    rm /tmp/.script_lock_"$INTERFACE" && success "$(date) - $INTERFACE $IP - Removed lock file" || fatal "$(date) - $INTERFACE $IP - Failed to remove lock file"
 fi
 
 ###############################################################################################################
 # END                                                                                                         #
 ###############################################################################################################
-success "$(date) - $INTERFACE - Script finished - $COUNTER Warning(s) and / or error(s)"
+success "$(date) - $INTERFACE $IP - Script finished - $COUNTER Warning(s) and / or error(s)"
 
 exit 0
