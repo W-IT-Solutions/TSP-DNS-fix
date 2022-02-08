@@ -1,7 +1,6 @@
 #!/bin/bash
 # Clear outgoing interfaces
 MAINETHNIC=
-SCRIPTS=
 
 cat /dev/null > /etc/unbound/outgoing.conf
 cat /dev/null > /tmp/interfaces
@@ -20,7 +19,6 @@ for INTERFACE in "${interfaces[@]// /}" ; do
         error "$(date) - Setup Unbound - No IP on $INTERFACE"
     else
         echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf
-        echo "outgoing-interface: $IP" >> "$SCRIPTS"/outgoing.conf
     fi
 done
 

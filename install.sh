@@ -38,7 +38,7 @@ cat /dev/null > /var/log/health_check_script_errors_warnings.log && success "$(d
 ##### DYNAMIC #
 ###############
 VERSION="0.1"
-DEBUG="1" # 1 = on / 0 = off
+DEBUG="0" # 1 = on / 0 = off
 SCRIPTS="/var/scripts"
 MAINETHNIC="enp0s31f6" # Interface to ignore, please adjust, should be different on each system
 APTIPV4="1" # Force APT to use IPV4, needed as IPV6 DNS lookups on LTE seem to fail (Note that IPV4 will still resolve both ipv4 and ipv6 addresses)
@@ -134,8 +134,7 @@ set_outgoing_interfaces_unbound() {
         if [ -z "$IP" ]; then
             error "$(date) - Setup Unbound - No IP on $INTERFACE"
         else
-            echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf
-            echo "outgoing-interface: $IP" >> "$SCRIPTS"/outgoing.conf
+            echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf && success "$(date) - Setup Unbound - outgoing-interface: $IP $INTERFACE > /etc/unbound/outgoing.conf" || error "$(date) - Setup Unbound - Failed: outgoing-interface: $IP $INTERFACE > /etc/unbound/outgoing.conf"
         fi
     done
 }
@@ -144,6 +143,9 @@ set_outgoing_interfaces_unbound() {
 # GENERATE SYSTEMD SCRIPT FOR EACH DPINGER INTERFACE MONITOR                                                  #
 ###############################################################################################################
 dpinger_systemd() {
+    # Stop old service 
+    systemctl -q stop health_check_"$i".service || true && success "$(date) - Stopped health_check_$i.service - Ok" 
+
 cat > /etc/systemd/system/health_check_"$i".service <<EOF && success "$(date) - dpinger_systemd - Dpinger systemd generated for $i" || error "$(date) - dpinger_systemd - Failed to generate Dpinger systemd config for $i"
 [Unit]
 Description=Health check $i
@@ -160,11 +162,10 @@ WantedBy=multi-user.target
 EOF
 # -D $LATENCY
 
-# Enable and start
-systemctl -q stop health_check_"$i".service || true && success "$(date) - Stopped health_check_$i.service - Ok" 
-systemctl -q daemon-reload && success "$(date) - daemon-reload - $i" || fatal "$(date) - daemon-reload - $i"
-systemctl -q enable health_check_"$i".service && success "$(date) - enable health_check_$i.service - Ok" || fatal "$(date) - enable health_check_$i.service - Failed"
-systemctl -q start health_check_"$i".service && success "$(date) - start health_check_$i.service - Ok" || fatal "$(date) - start health_check_$i.service - Failed"  
+    # Enable and start
+    systemctl -q daemon-reload && success "$(date) - daemon-reload - $i" || fatal "$(date) - daemon-reload - $i"
+    systemctl -q enable health_check_"$i".service && success "$(date) - enable health_check_$i.service - Ok" || fatal "$(date) - enable health_check_$i.service - Failed"
+    systemctl -q start health_check_"$i".service && success "$(date) - start health_check_$i.service - Ok" || fatal "$(date) - start health_check_$i.service - Failed"  
 }
 
 ###############################################################################################################
@@ -256,18 +257,25 @@ systemctl start rc-local && success "$(date) - Setup RC.LOCAL - Start service" |
 # GRAB HEALTH_CHECK.SH                                                                                        #
 ###############################################################################################################
 if ! [ -f "$SCRIPTS"/health_check.sh ]; then
-    curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh > "$SCRIPTS"/health_check.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
-    chmod +x "$SCRIPTS"/health_check.sh && success "$(date) - chmod +x health_check.sh - Done" || error "$(date) - chmod +x health_check.sh - Failed"
+    curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh > "$SCRIPTS"/health_check.sh && success "$(date) - Grab health_check.sh" || error "$(date) - Grab health_check.sh"
+    chmod +x "$SCRIPTS"/health_check.sh && success "$(date) - chmod +x health_check.sh" || error "$(date) - chmod +x health_check.sh"
 fi
 
 ###############################################################################################################
 # GRAB SET_OUTGOING_INTERFACES_ONSTART.SH                                                                     #
 ###############################################################################################################
 if ! [ -f "$SCRIPTS"/set_outgoing_interfaces_onstart.sh ]; then
-    curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/set_outgoing_interfaces_onstart.sh > "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - Grab health_check.sh - Done" || error "$(date) - Grab health_check.sh - Failed"
+    curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/set_outgoing_interfaces_onstart.sh > "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - Grab set_outgoing_interfaces_onstart.sh" || error "$(date) - Grab set_outgoing_interfaces_onstart.sh"
     chmod +x "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Done" || error "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Failed"
     sed -i "s|MAINETHNIC=|MAINETHNIC=$MAINETHNIC|g" "$SCRIPTS"/set_outgoing_interfaces_onstart.sh
-    sed -i "s|SCRIPTS=|SCRIPTS=$SCRIPTS|g" "$SCRIPTS"/set_outgoing_interfaces_onstart.sh
+fi 
+
+###############################################################################################################
+# GRAB UNBOUND_CHECK.SH                                                                                       #
+###############################################################################################################
+if ! [ -f "$SCRIPTS"/unbound_check.sh ]; then
+    curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/unbound_check.sh > "$SCRIPTS"/unbound_check.sh && success "$(date) - Grab unbound_check.sh" || error "$(date) - Grab unbound_check.sh"
+    chmod +x "$SCRIPTS"/unbound_check.sh && success "$(date) - chmod +x unbound_check.sh" || error "$(date) - chmod +x unbound_check.sh"
 fi 
 
 ###############################################################################################################
@@ -326,6 +334,29 @@ EOF
     systemctl stop systemd-resolved.service && success "$(date) - Resolved - Stopped service" || fatal "$(date) - Resolved - Failed to stop service"
     systemctl disable systemd-resolved.service && success "$(date) - Resolved - Disabled service" || fatal "$(date) - Resolved - Failed to disable service"
 fi
+
+###############################################################################################################
+# RESOLVCONF.CONF                                                                                             #
+###############################################################################################################
+# Check if file is write protected from previous setups
+if ! [ -w "/etc/resolv.conf" ]; then
+    chattr -i /etc/resolv.conf && success "$(date) - Setup Unbound - Write protect disabled on /etc/resolv.conf" || fatal "$(date) - Setup Unbound - Failed to disable write protect on /etc/resolv.conf"
+fi
+
+# Write config
+cat > /etc/resolvconf.conf <<EOF && success "$(date) - Resolveconf.conf - New config set" || fatal "$(date) - Resolveconf.conf - Failed to set new config"
+# Configuration for resolvconf(8)
+# See resolvconf.conf(5) for details
+
+resolv_conf=/etc/resolv.conf
+name_servers=127.0.0.1
+EOF
+
+# Reload config
+resolvconf -u
+
+# Write protect /etc/resolv.conf
+chattr +i /etc/resolv.conf && success "$(date) - Setup Unbound - Write protect set on /etc/resolv.conf" || fatal "$(date) - Setup Unbound - Failed to set write protect on /etc/resolv.conf"
 
 ###############################################################################################################
 # CLEAR RESOLVCONF HOOK SCRIPTS                                                                               #
@@ -754,7 +785,7 @@ fi
 
 # Remove outgoing.conf backup
 if [ -f "$SCRIPTS"/outgoing.conf ]; then
-    rm "$SCRIPTS"/outgoing.conf
+    rm -rf "$SCRIPTS"/outgoing.conf
 fi
 
 set_outgoing_interfaces_unbound
@@ -763,17 +794,9 @@ systemctl enable unbound.service && success "$(date) - Setup Unbound - Enabled s
 systemctl restart unbound.service && success "$(date) - Setup Unbound - Restarted service" || fatal "$(date) - Setup Unbound - Failed to restart service"
 
 ###############################################################################################################
-# RESOLV.CONF                                                                                                 #
-###############################################################################################################
-cp /etc/resolv.conf /etc/resolv.backup."$DATE"
-echo "nameserver 127.0.0.1" > /etc/resolv.conf && success "$(date) - Resolvconf - Set 127.0.0.1 as nameserver in /etc/resolv.conf" || warning "$(date) - Resolvconf - Failed to set 127.0.0.1 as nameserver in /etc/resolv.conf, probably is write protected by: chattr -i"
-
-# Write protect /etc/resolv.conf
-chattr +i /etc/resolv.conf && success "$(date) - Setup Unbound - Write protect set on /etc/resolv.conf" || fatal "$(date) - Setup Unbound - Failed to to set write protect on /etc/resolv.conf"
-
-###############################################################################################################
 # TEST UNBOUND                                                                                                #
 ###############################################################################################################
+sleep 5
 unbound-control flush facebook.com && success "$(date) - DNS Check - Flush DNS" || fatal "$(date) - DNS Check - Flushing DNS failed"
 
 if host facebook.com; then
