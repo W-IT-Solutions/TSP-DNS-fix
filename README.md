@@ -1,8 +1,15 @@
-# TSP-DNS-fix
-`install.sh` Installs unbound DNS caching server, listining on all interfaces + DNS over TLS (Cloudflare) + outgoing DNS queries on all interfaces and let the system use unbound as its primary DNS server https://www.cloudflare.com/learning/dns/dns-over-tls/
+# Problem
+When the main metric interface is down, by connOff.sh or LTE endpoint failure, the default routes for that interface are still in place but, obviously not working. 
+When not changing the metric of the failing interface, the system will use the IP setup on that interface for outgoing requests, thus will fail no matter what. 
 
-Unbound will bind to all INTERFACEIP:53 (check with `ss -tunlp | grep ':53'`) and will respond to requests on each interface. Thus always having multiple outbound routes for DNS resolving.
-when the ttl expires on a domain, unbound will do an automated lookup to refresh the cache and thus speeding up future lookups to that domain.
+Its not possible to send traffic out all interfaces at once, for this we'd need bonding, also an option though.
+
+## Workflow
+`install.sh` Installs unbound DNS caching server, listining on all interfaces + DNS over TLS (Cloudflare) + outgoing DNS queries on all (active) interfaces and lets the system use unbound as its primary DNS server https://www.cloudflare.com/learning/dns/dns-over-tls/
+
+Unbound will bind to all INTERFACEIPs:53 (check with `ss -tunlp | grep ':53'`) and will respond to requests on each interface. It sends the outgoing requests out over specified interfaces in /etc/unbound/outgoing.conf. Which is updated by a script based on dpinger monitor output of each interface. Thus always having multiple outbound routes for DNS resolving.
+
+when the ttl expires on a domain, Unbound will do an automated lookup to refresh the cache and thus speeding up future lookups to that domain.
 Redis is installed for persistant DNS cache (tested on AVG 10-30ms, can speed it up using a unix socket)
 
 As long as `nameserver 127.0.0.1` is in `/etc/resolv.conf`, the system is able to resolve domain names no matter if the main interface is down (and thus other commands to the WWW will fail)
@@ -12,17 +19,14 @@ When you browse websites you make dozens of DNS queries for different resources 
 Lots of these libraries are commonly used across multiple websites.
 Unbound will soon learn where those resources are and won't have to do a full lookup every time.
 
-# Problem
-When the main metric interface is down, by connOff.sh or LTE endpoint failure, the default routes for that interface are still in place but, obviously not working. 
-When not changing the metric of the failing interface, the system will use the IP setup on that interface for outgoing requests, thus will fail no matter what. 
+Now we're able to do lookups even when the main interface is down, on each interface (LTE endpoint) that is up.
+We monitor the interface state with dpinger which writes the values to a file and a systemd script checks those values and adds or removes outgoing-interfaces from unbound.conf automatically based on link status. End result, always a working DNS resolver.
 
-Its not possible to send traffic out all interfaces at once, for this we'd need bonding, also an option though.
+So this partly solves the issues, the remaining issue is that when we bring down the main interface (metric wise) with bash connOff.sh $IP
+The DNS keeps working but, the system doesn't know the LTE endpoint is down since no program/script informs the system that that is the case. While still trying to route traffic over that interface for eg. `apt update` or `curl website.com`. But that will fail.
 
-## Workflow
-We're able to do lookups even when the main interface is down on each interface that is up.
-we monitor the interface state with dpinger which writes the values and a systemd script checks those and adds or removes outgoing-interfaces from unbound.conf automatically based on link status. End result, always a working DNS resolver.
-
-In order have a connection again on the file system when the main interface is down, we can use dpinger and the same script to add (+1000) metric to interfaces that are down. In turn when the interface is up deduct (-1000) from the metric and the interface is add to the 'working interface pool' again.
+In order to have a connection again on the server when the main interface is down, we can use dpinger and the same script to add (+1000) metric to interfaces that are down. In turn when the interface is up deduct (-1000) from the metric and the interface is add to the 'working interface pool' again.
+This can be enabled (uncommented in health_check.sh) after a few tests (worked separatly, integration needed)
 
 ## Commands to verify workings unbound
 Notice the query time in the dig commands, if its a good hit and has a time of 0, it is served from cache (local unbound). When its in the 10 to 30ms range it got a reply from redis and any higher will be the upstream server.
@@ -43,6 +47,23 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 `nano install.sh`
 
 `bash install.sh`
+
+# Log files
+`/var/log/DNS_fix_install.log`
+`/var/log/health_check.log`
+`/var/log/health_check_script_errors_warnings.log`
+`/var/log/unbound-check.log` 
+`tail -f /var/log/syslog | grep unbound | grep -v 'bol.com'`
+
+# Misc commands
+`systemctl status health_check_*`
+`cat /etc/unbound/unbound.conf`
+`cat /etc/unbound/outgoing.conf`
+`cat /etc/resolvconf.conf`
+`cat /etc/resolv.conf`
+`cat /etc/systemd/resolved.service`
+`cat /etc/rc.local`
+`cat /var/scripts/*.sh`
 
 
 ## showcase of working DNS with main interface down:

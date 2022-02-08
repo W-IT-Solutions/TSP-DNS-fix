@@ -38,18 +38,15 @@ success() {
 }
 warning() {
 	/bin/echo -e "${IYellow} $* ${Color_Off}" >&2
-    /bin/echo -e "${IYellow} $* ${Color_Off}" >> /var/log/unbound-check-err.log   
 }
 error() {
 	/bin/echo -e "${IRed} $* ${Color_Off}" >&2
-  	/bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/unbound-check-err.log   
 }
 header() {
 	/bin/echo -e "${IBlue} $* ${Color_Off}" >&2
 }
 fatal() {
 	/bin/echo -e "${IRed} $* ${Color_Off}" >&2
-    /bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/unbound-check-err.log    
 	exit 1
 }
 
