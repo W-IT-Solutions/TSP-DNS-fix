@@ -31,7 +31,7 @@ When not changing the metric of the failing interface, the system will use the I
 Its not possible to send traffic out all interfaces at once, for this we'd need bonding, also an option though.
 
 ## Workflow
-`install.sh` Installs onunbound DNS caching server, listining on all interfaces + DNS over TLS (Cloudflare) + outgoing DNS queries on all (active) interfaces and lets the system use unbound as its primary DNS server https://www.cloudflare.com/learning/dns/dns-over-tls/
+`install.sh` Installs unbound DNS caching server, listining on all interfaces + DNS over TLS (Cloudflare) + outgoing DNS queries on all (active) interfaces and lets the system use unbound as its primary DNS server https://www.cloudflare.com/learning/dns/dns-over-tls/
 
 Unbound will bind to all INTERFACEIPs:53 (check with `ss -tunlp | grep ':53'`) and will respond to requests on each interface. It sends the outgoing requests out over specified interfaces in /etc/unbound/outgoing.conf. Which is updated by a script based on dpinger monitor output of each interface. Thus always having multiple outbound routes for DNS resolving.
 
@@ -47,6 +47,9 @@ Unbound will soon learn where those resources are and won't have to do a full lo
 
 Now we're able to do lookups even when the main interface is down, on each interface (LTE endpoint) that is up.
 We monitor the interface state with dpinger which writes the values to a file and a systemd script checks those values and adds or removes outgoing-interfaces from unbound.conf automatically based on link status. End result, always a working DNS resolver.
+Current logic:
+`If $interface loss % (avg. over 60 seconds) -gt 15% - remove interface from the outgoing.conf and reload.`
+`If $interface loss % (avg. over 60 seconds) -eq 0% - add the interface in outgoing.conf and reload.`
 
 So this partly solves the issues, the remaining issue is that when we bring down the main interface (metric wise) with bash connOff.sh $IP
 The DNS keeps working but, the system doesn't know the LTE endpoint is down since no program/script informs the system that that is the case. While still trying to route traffic over that interface for eg. `apt update` or `curl website.com`. But that will fail.
@@ -93,7 +96,6 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 * `cat /etc/systemd/resolved.service`
 * `cat /etc/rc.local`
 * `cat /var/scripts/*.sh`
-
 
 ## showcase of working DNS with main interface down:
 ```
