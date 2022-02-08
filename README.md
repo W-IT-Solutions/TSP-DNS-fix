@@ -1,6 +1,6 @@
 # Problem
 When the main metric interface is down, by connOff.sh or LTE endpoint failure, the default routes for that interface are still in place but, obviously not working. 
-When not changing the metric of the failing interface, the system will use the IP setup on that interface for outgoing requests, thus will fail no matter what. 
+When not changing the metric of the failing interface, the system will use the IP and routes setup on that interface for outgoing requests, thus will fail no matter what. 
 
 Its not possible to send traffic out all interfaces at once, for this we'd need bonding, also an option though.
 
