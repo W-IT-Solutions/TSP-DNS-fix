@@ -53,7 +53,6 @@ DATE=$(date +%d-%b-%Y-%H%M)
 COUNTER="0"
 MAINNIC=$(route -n | head -3 | tail -1 | awk '{printf "%s\n",$8}')
 MAINIP=$(ip address show dev "$MAINNIC" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
-SYSCTL=$(grep 'net.core.rmem_max' /etc/sysctl.conf)
 
 ###############################################################################################################
 # CMD LINE OUTPUT                                                                                             #
@@ -385,7 +384,7 @@ systemctl restart redis.service && success "$(date) - Setup Redis - Restarted se
 # SET net.core.rmem_max                                                                                       #
 ###############################################################################################################
 if grep 'net.core.rmem_max' /etc/sysctl.conf; then
-	sed -i "/net.core.rmem_max/d" /etc/sysctl.conf && success "$(date) - RMEM MAX - Removed old value from sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to remove old value from sysctl.conf"
+	sed -i '/net.core.rmem_max/d' /etc/sysctl.conf && success "$(date) - RMEM MAX - Removed old value from sysctl.conf" || fatal "$(date) - RMEM MAX - Failed to remove old value from sysctl.conf"
 fi
 
 echo "net.core.rmem_max=1048576" >> /etc/sysctl.conf 
@@ -830,6 +829,6 @@ header "$(date) - Misc"
 # END                                                                                                         #
 ###############################################################################################################
 success "$(date) - Script finished - $COUNTER Warning(s) and / or error(s)"
-cat /var/log/health_check_script_errors_warnings.log
+cat /var/log/health_check_script_errors_warnings.log | grep -v 'Loss is still higher' | grep -v 'Failed to reload unbound'
 
 exit 0
