@@ -1,3 +1,6 @@
+# Server details
+Debian server with multiple ~80 LTE modems attached for WAN connectivity and no wired/wifi connection to WAN or LAN.
+
 # Problem
 When the main metric interface is down, by connOff.sh or LTE endpoint failure, the default routes for that interface are still in place but, obviously not working. 
 When not changing the metric of the failing interface, the system will use the IP and routes setup on that interface for outgoing requests, thus will fail no matter what. 
@@ -5,7 +8,7 @@ When not changing the metric of the failing interface, the system will use the I
 Its not possible to send traffic out all interfaces at once, for this we'd need bonding, also an option though.
 
 ## Workflow
-`install.sh` Installs unbound DNS caching server, listining on all interfaces + DNS over TLS (Cloudflare) + outgoing DNS queries on all (active) interfaces and lets the system use unbound as its primary DNS server https://www.cloudflare.com/learning/dns/dns-over-tls/
+`install.sh` Installs onunbound DNS caching server, listining on all interfaces + DNS over TLS (Cloudflare) + outgoing DNS queries on all (active) interfaces and lets the system use unbound as its primary DNS server https://www.cloudflare.com/learning/dns/dns-over-tls/
 
 Unbound will bind to all INTERFACEIPs:53 (check with `ss -tunlp | grep ':53'`) and will respond to requests on each interface. It sends the outgoing requests out over specified interfaces in /etc/unbound/outgoing.conf. Which is updated by a script based on dpinger monitor output of each interface. Thus always having multiple outbound routes for DNS resolving.
 
@@ -27,6 +30,9 @@ The DNS keeps working but, the system doesn't know the LTE endpoint is down sinc
 
 In order to have a connection again on the server when the main interface is down, we can use dpinger and the same script to add (+1000) metric to interfaces that are down. In turn when the interface is up deduct (-1000) from the metric and the interface is add to the 'working interface pool' again.
 This can be enabled (uncommented in health_check.sh) after a few tests (worked separatly, integration needed)
+
+## Tested on:
+`Linux raspberry 4.19.0-18-amd64 #1 SMP Debian 4.19.208-1 (2021-09-29) x86_64 GNU/Linux`
 
 ## Commands to verify workings unbound
 Notice the query time in the dig commands, if its a good hit and has a time of 0, it is served from cache (local unbound). When its in the 10 to 30ms range it got a reply from redis and any higher will be the upstream server.
