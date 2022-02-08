@@ -62,29 +62,29 @@ Notice the query time in the dig commands, if its an answer and has a response t
 So to properly test DNS resolving either clear the cache or, query a new domain that is not cached yet.
 Every interface that is up and has a proper LTE connection is able to do lookups on `INTERFACEIP:53`
 
-### Make query to unbound on specific interface that in turn tries all available interfaces
+## Make query to unbound on specific interface that in turn tries all available interfaces
 * `dig -p 53 facebook.com @192.168.8.11`
 
-### Make query to unbound that in turn tries all available interfaces
+## Make query to unbound that in turn tries all available interfaces
 * `dig -p 53 facebook.com @127.0.0.1`
 
 ## Flush unbound cache
 * `unbound-control flush`
 * `unbound-control flush domain.com`
 
-# Download the script, inspect it, adjust variable's and run
+## Download the script, inspect it, adjust variable's and run
 * `wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/install.sh`
 * `nano install.sh`
 * `bash install.sh`
 
-# Log files
+## Log files
 * `/var/log/DNS_fix_install.log`
 * `/var/log/health_check.log`
 * `/var/log/health_check_script_errors_warnings.log`
 * `/var/log/unbound-check.log` 
 * `tail -f /var/log/syslog | grep unbound | grep -v 'bol.com'`
 
-# Misc commands
+## Misc commands
 * `systemctl status health_check_*`
 * `cat /etc/unbound/unbound.conf`
 * `cat /etc/unbound/outgoing.conf`
