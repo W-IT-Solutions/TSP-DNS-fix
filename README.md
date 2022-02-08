@@ -2,7 +2,23 @@
 Debian server with multiple ~80 LTE modems attached for WAN connectivity and no wired/wifi connection to WAN or LAN.
 
 # Problem
-When the main metric interface is down, by connOff.sh or LTE endpoint failure, the default routes for that interface are still in place but, obviously not working. 
+On boot dhcpcd assigns a metric to each interface not taking the performance of that interface in to account.
+Normally we'd see a list like this:
+```Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+0.0.0.0         192.168.8.1     0.0.0.0         UG    202    0        0 enp3s0u1u4u2
+0.0.0.0         192.168.8.1     0.0.0.0         UG    203    0        0 enp3s0u1u4u1
+0.0.0.0         192.168.8.1     0.0.0.0         UG    205    0        0 enp3s0u1u4u3
+0.0.0.0         192.168.8.1     0.0.0.0         UG    206    0        0 enp3s0u1u4u4u1
+0.0.0.0         192.168.8.1     0.0.0.0         UG    208    0        0 enp3s0u1u4u4u2
+0.0.0.0         192.168.8.1     0.0.0.0         UG    209    0        0 enp3s0u1u4u4u3
+0.0.0.0         192.168.8.1     0.0.0.0         UG    210    0        0 enp3s0u1u4u4u4
+0.0.0.0         192.168.8.1     0.0.0.0         UG    213    0        0 enp3s0u1u3
+0.0.0.0         192.168.8.1     0.0.0.0         UG    214    0        0 enp3s0u1u2
+0.0.0.0         192.168.8.1     0.0.0.0         UG    215    0        0 enp3s0u1u1
+```
+
+So some might work, some might not. So when the main metric interface is down, by connOff.sh or LTE endpoint failure, the default routes for that interface are still in place but, obviously not working. 
 When not changing the metric of the failing interface, the system will use the IP and routes setup on that interface for outgoing requests, thus will fail no matter what. 
 
 Its not possible to send traffic out all interfaces at once, for this we'd need bonding, also an option though.
@@ -35,9 +51,10 @@ This can be enabled (uncommented in health_check.sh) after a few tests (worked s
 `Linux raspberry 4.19.0-18-amd64 #1 SMP Debian 4.19.208-1 (2021-09-29) x86_64 GNU/Linux`
 
 ## Commands to verify workings unbound
-Notice the query time in the dig commands, if its a good hit and has a time of 0, it is served from cache (local unbound). When its in the 10 to 30ms range it got a reply from redis and any higher will be the upstream server.
-So to properly test DNS resolving either clear the cache or query a new domain that is not cached yet.
+Notice the query time in the dig commands, if its an answer and has a response time of 0, it is served from cache (local unbound). When its in the 10 to 50ms range it got a reply from Redis cache and any higher will be the upstream server.
+So to properly test DNS resolving either clear the cache or, query a new domain that is not cached yet.
 Every interface that is up and has a proper LTE connection is able to do lookups on `INTERFACEIP:53`
+
 `dig -p 53 facebook.com @192.168.8.11`
 
 ### Make query to unbound that in turn tries all available interfaces
@@ -55,11 +72,11 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 `bash install.sh`
 
 # Log files
-`/var/log/DNS_fix_install.log`
-`/var/log/health_check.log`
-`/var/log/health_check_script_errors_warnings.log`
-`/var/log/unbound-check.log` 
-`tail -f /var/log/syslog | grep unbound | grep -v 'bol.com'`
+* `/var/log/DNS_fix_install.log`
+* `/var/log/health_check.log`
+* `/var/log/health_check_script_errors_warnings.log`
+* `/var/log/unbound-check.log` 
+* `tail -f /var/log/syslog | grep unbound | grep -v 'bol.com'`
 
 # Misc commands
 `systemctl status health_check_*`
