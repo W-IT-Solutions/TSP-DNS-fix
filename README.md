@@ -69,6 +69,7 @@ This won't be an issue on the productions systems because of the # of modems
 * `wget https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/install.sh`
 * `nano install.sh`
 * `bash install.sh`
+* `tail -f /var/log/DNS_fix_install.log` View script output in another console or set `$INTERACTIVE` to `1` inside `install.sh`
 
 ## Commands to verify working unbound
 Notice the query time in the dig commands, if its an answer and has a response time of 0, it is served from cache (local unbound). When its in the 10 to 50ms range it got a reply from Redis cache and any higher will be the upstream server.
