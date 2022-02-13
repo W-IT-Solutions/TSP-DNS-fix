@@ -82,8 +82,8 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 * `dig -p 53 facebook.com @127.0.0.1`
 
 ## Flush unbound cache
-* `unbound-control flush`
-* `unbound-control flush domain.com`
+* `unbound-control flush` Flush all
+* `unbound-control flush domain.com` Flush domain only
 
 ## files
 * `/tmp/health_$interface` File with interface health values that we read from
@@ -94,14 +94,14 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 * `tail -f /var/log/syslog | grep unbound` Log of unbound queries and replies
 
 ## Misc commands
-* `systemctl status health_check_*`
-* `cat /etc/unbound/unbound.conf`
-* `cat /etc/unbound/outgoing.conf`
-* `cat /etc/resolvconf.conf`
-* `cat /etc/resolv.conf`
+* `systemctl status health_check_*` Check if health_check on a particular interface is running
+* `cat /etc/unbound/unbound.conf` Check unbound config
+* `cat /etc/unbound/outgoing.conf` Check unbound outgoing ports currently active
+* `cat /etc/resolvconf.conf` 
+* `cat /etc/resolv.conf` Check nameserver that is used (should be: nameserver 127.0.0.1)
 * `cat /etc/systemd/resolved.service`
-* `cat /etc/rc.local`
-* `cat /var/scripts/*.sh`
+* `cat /etc/rc.local` Upstart script 
+* `cat /var/scripts/*.sh` Check all scripts for this project
 
 ## showcase of working DNS with main interface down:
 ```
