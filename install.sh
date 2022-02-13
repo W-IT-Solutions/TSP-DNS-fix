@@ -57,34 +57,35 @@ MAINIP=$(ip address show dev "$MAINNIC" | grep inet | head -1 | awk '{printf "%s
 ###############################################################################################################
 # CMD LINE OUTPUT                                                                                             #
 ###############################################################################################################
-print_text_in_color() {
-/usr/bin/printf "%b%s%b\n" "$1" "$2" "$Color_Off"
-}
 Color_Off='\e[0m'       # Text Reset
 IRed='\e[0;91m'         # Red
 IGreen='\e[0;92m'       # Green
 IYellow='\e[0;93m'      # Yellow
 IBlue='\e[0;94m'        # Blue
 
+print_text_in_color() {
+	/usr/bin/printf "%b%s%b\n" "$1" "$2" "$Color_Off"
+}
+
 success() {
 	/bin/echo -e "${IGreen} $* ${Color_Off}" >&2
 }
 warning() {
 	/bin/echo -e "${IYellow} $* ${Color_Off}" >&2
-    /bin/echo -e "${IYellow} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log 
-    COUNTER=$((COUNTER+1))       
+ 	/bin/echo -e "${IYellow} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log 
+	COUNTER=$((COUNTER+1))       
 }
 error() {
 	/bin/echo -e "${IRed} $* ${Color_Off}" >&2
   	/bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log
-    COUNTER=$((COUNTER+1))
+	COUNTER=$((COUNTER+1))
 }
 header() {
 	/bin/echo -e "${IBlue} $* ${Color_Off}" >&2
 }
 fatal() {
 	/bin/echo -e "${IRed} $* ${Color_Off}" >&2
-    /bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log    
+	/bin/echo -e "${IRed} $* ${Color_Off}" >> /var/log/health_check_script_errors_warnings.log    
 	exit 1
 }
 
