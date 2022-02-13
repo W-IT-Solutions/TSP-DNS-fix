@@ -16,8 +16,8 @@
 ###############################################################################################################
 # LOGGER                                                                                                      #
 ###############################################################################################################
-INTERACTIVE="1" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
-if ! [ $INTERACTIVE == 0 ]; then 
+INTERACTIVE="0" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
+if [ $INTERACTIVE == 0 ]; then 
     LOGFILE="/var/log/DNS_fix_install.log" # Log file
     exec 3>&1 4>&2
     trap 'exec 2>&4 1>&3' 0 1 2 3 15 RETURN
