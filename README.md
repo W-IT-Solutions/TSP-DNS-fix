@@ -58,7 +58,7 @@ In order to have a connection again on the server when the main interface is dow
 This can be enabled (uncommented in health_check.sh) after a few tests (worked separatly, integration needed)
 
 Note: on a system with only 3 working modems this might result in an occasional failure to resolve any names. Since the link quality varies during the day in regards to avg. Loss %. In other words, the more modems, the better chance of having multiple 0% loss modems. Might be needed to tweak the logic settings mentioned above.
-At the time of testing 1 interface was at 0% loss, 99% of the time and 2 where fluctuating between 0% and 30% throughout the day and 4 out of 4004 DNS query attempts failed because of this 1% downtime of the first interface (that performed best), see unbound-check.sh.
+At the time of testing 1 interface was at 0% loss, 99% of the time and 2 where fluctuating between 0% and 30% throughout the day and 4 out of 7810 DNS query attempts failed because of this 1% downtime of the first interface (that performed best), see unbound-check.sh.
 You obviously don't want DNS requests going of those 5%+ loss interfaces since that will negativly impact the user experience.
 This won't be an issue on the productions systems because of the # of modems
 
@@ -85,12 +85,13 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 * `unbound-control flush`
 * `unbound-control flush domain.com`
 
-## Log files
-* `/var/log/DNS_fix_install.log`
-* `/var/log/health_check.log`
-* `/var/log/health_check_script_errors_warnings.log`
-* `/var/log/unbound-check.log` 
-* `tail -f /var/log/syslog | grep unbound | grep -v 'bol.com'`
+## files
+* `/tmp/health_$interface` File with interface health values that we read from
+* `/var/log/DNS_fix_install.log` Log of install.sh
+* `/var/log/health_check.log` Log of health_check.sh
+* `/var/log/health_check_script_errors_warnings.log` Error log of health_check.sh
+* `/var/log/unbound-check.log` Log of the continues unbound resolving checker
+* `tail -f /var/log/syslog | grep unbound` Log of unbound queries and replies
 
 ## Misc commands
 * `systemctl status health_check_*`
