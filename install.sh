@@ -1,5 +1,5 @@
 #!/bin/bash 
-# shellcheck disable=SC2034,SC2015,SC2116
+# shellcheck disable=SC2034,SC2015,SC2116,SC2002
 # Jan 6 2022 - scripting@waaromzomoeilijk.nl
 # Install unbound as local dns cache server, let the system use that as its primary DNS and let unbound query DNS requests over all LTE interfaces
 # This uses https://www.cloudflare.com/learning/dns/dns-over-tls/ (optional)
@@ -17,13 +17,13 @@
 # LOGGER                                                                                                      #
 ###############################################################################################################
 INTERACTIVE="1" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
-if ! [ $INTERACTIVE == 1 ]; then 
+if ! [ $INTERACTIVE == 0 ]; then 
     LOGFILE="/var/log/DNS_fix_install.log" # Log file
     exec 3>&1 4>&2
     trap 'exec 2>&4 1>&3' 0 1 2 3 15 RETURN
     exec 1>>"$LOGFILE" 2>&1
 fi
-cat /dev/null > /var/log/health_check_script_errors_warnings.log && success "$(date) - INIT - Cleaned error/warning log" || error "$(date) - INIT - Failed to clean error/wrning log"
+cat /dev/null > /var/log/health_check_script_errors_warnings.log && echo "$(date) - INIT - Cleaned error/warning log" || echo "$(date) - INIT - Failed to clean error/wrning log"
 
 ###############################################################################################################
 # DEFAULT LOG EXTENSION                                                                                       #
@@ -37,12 +37,12 @@ cat /dev/null > /var/log/health_check_script_errors_warnings.log && success "$(d
 ###############
 ##### DYNAMIC #
 ###############
-VERSION="0.1"
-DEBUG="0" # 1 = on / 0 = off
-SCRIPTS="/var/scripts"
+VERSION="0.2"
+DEBUG="1" # 1 = on / 0 = off
+SCRIPTS="/var/scripts" # Directory to place scripts beloning to this project
 MAINETHNIC="enp0s31f6" # Interface to ignore, please adjust, should be different on each system
 APTIPV4="1" # Force APT to use IPV4, needed as IPV6 DNS lookups on LTE seem to fail (Note that IPV4 will still resolve both ipv4 and ipv6 addresses)
-LOSS="15" # Loss % threshold
+LOSS="15" # Trigger interface removal from unbound outgoing config, at % loss
 #LATENCY="200m" # latency threshold in ms, use only m as in NUMBERm and not NUMBERms in var.
 #TIME="10" # 10 Seconds measure period for dpinger
 
@@ -66,7 +66,6 @@ IBlue='\e[0;94m'        # Blue
 print_text_in_color() {
 	/usr/bin/printf "%b%s%b\n" "$1" "$2" "$Color_Off"
 }
-
 success() {
 	/bin/echo -e "${IGreen} $* ${Color_Off}" >&2
 }
@@ -138,6 +137,15 @@ set_outgoing_interfaces_unbound() {
         fi
     done
 }
+###############################################################################################################
+# START SERVICES FOR EACH INTERFACE                                                                           #
+###############################################################################################################
+batch_health_check() {
+    readarray -t interfaces < <(cat /tmp/interfaces)
+    for INTERFACE in "${interfaces[@]// /}" ; do 
+        echo "systemctl restart health_check_$INTERFACE.service" >> /tmp/batch_health_check.sh
+    done
+}
 
 ###############################################################################################################
 # GENERATE SYSTEMD SCRIPT FOR EACH DPINGER INTERFACE MONITOR                                                  #
@@ -165,7 +173,6 @@ EOF
     # Enable and start
     systemctl -q daemon-reload && success "$(date) - daemon-reload - $i" || fatal "$(date) - daemon-reload - $i"
     systemctl -q enable health_check_"$i".service && success "$(date) - enable health_check_$i.service - Ok" || fatal "$(date) - enable health_check_$i.service - Failed"
-    systemctl -q start health_check_"$i".service && success "$(date) - start health_check_$i.service - Ok" || fatal "$(date) - start health_check_$i.service - Failed"  
 }
 
 ###############################################################################################################
@@ -185,7 +192,7 @@ setup_dpinger(){
 header "INIT $(date)"
 debug_mode
 root_check && success "$(date) - INIT - Root check ok"
-find /tmp -type -f -iname "script_lock" -delete && success "$(date) - Removed lock file" || success "$(date) - No lock file found to remove"
+find /tmp -type f -iname "script_lock" -delete && success "$(date) - Removed lock file" || success "$(date) - No lock file found to remove"
 
 ###############################################################################################################
 # UPDATE & UPGRADE & DEPENDENCIES                                                                             #
@@ -802,7 +809,7 @@ unbound-control flush facebook.com && success "$(date) - DNS Check - Flush DNS" 
 if host facebook.com; then
     success "$(date) - DNS Check - DNS is working via unbound!"
 else
-    warning "$(date) - DNS Check - DNS is not working via unbound! Please test after the script is done with: host facebook.com"
+    warning "$(date) - DNS Check - DNS is not working via unbound! Please test after the script is done and you're rebooted, with: host facebook.com"
 fi
 
 ###############################################################################################################
@@ -812,6 +819,15 @@ header "$(date) - Dpinger systemd generator"
 
 # Create services for the health check of each interface inside /etc/systemd/systemd/health_check_$interface.service
 setup_dpinger
+
+# Start service for each interface
+if [ -f /tmp/batch_health_check.sh ]; then
+    rm /tmp/batch_health_check.sh
+fi
+
+sleep 5
+batch_health_check
+bash /tmp/batch_health_check.sh & success "$(date) - start batch health_check.service - Ok" || fatal "$(date) - start batch health_check.service - Failed"  
 
 ###############################################################################################################
 # APT FORCE IPV4                                                                                              #
