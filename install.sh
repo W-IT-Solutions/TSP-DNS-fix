@@ -820,7 +820,8 @@ header "$(date) - Dpinger systemd generator"
 # Create services for the health check of each interface inside /etc/systemd/systemd/health_check_$interface.service
 setup_dpinger
 
-# Start service for each interface
+# Starting each service with the ExecStart delay takes ages when there are 80+ interfaces.
+# Lets them in the background or just simply reboot after installation
 if [ -f /tmp/batch_health_check.sh ]; then
     rm /tmp/batch_health_check.sh
 fi
