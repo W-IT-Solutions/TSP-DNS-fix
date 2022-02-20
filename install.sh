@@ -406,8 +406,10 @@ fi
 # UNBOUND ROOT HINTS CRONJOB                                                                                  #
 ###############################################################################################################
 if ! crontab -l | grep "root.hints"; then
-    crontab -l | { cat; echo '0 6 * * * /usr/bin/curl -o "/etc/unbound/root.hints" "https://www.internic.net/domain/named.cache"'; } | crontab - && success "$(date) - Setup Unbound - Wrote unbound root.hints" || fatal "$(date) - Setup Unbound - Failed to write unbound root.hints"
+    crontab -l | { cat; echo '0 6 * * * /usr/bin/curl -o "/etc/unbound/root.hints" "https://www.internic.net/domain/named.cache"'; } | crontab - && success "$(date) - Setup Unbound - Cron unbound root.hints" || fatal "$(date) - Setup Unbound - Failed to cron unbound root.hints"
 fi
+
+/usr/bin/curl -o "/etc/unbound/root.hints" "https://www.internic.net/domain/named.cache" && success "$(date) - Setup Unbound - Wrote unbound root.hints" || fatal "$(date) - Setup Unbound - Failed to write unbound root.hints"
 
 ###############################################################################################################
 # UNBOUND                                                                                                     #
