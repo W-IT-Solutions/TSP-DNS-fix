@@ -249,10 +249,14 @@ cat > /etc/rc.local <<EOF && success "$(date) - Setup RC.LOCAL - Wrote file" || 
 # value on error.
 
 # Unbound flush and query checks for evaluation
-/bin/bash /var/scripts/unbound_check.sh &
+if [ -f $SCRIPTS/unbound_check.sh]; then
+    /bin/bash $SCRIPTS/unbound_check.sh &
+fi
 
 # Populate unbound outgoing interfaces
-/bin/bash $SCRIPTS/set_outgoing_interfaces_onstart.sh &
+if [ -f $SCRIPTS/set_outgoing_interfaces_onstart.sh]; then
+    /bin/bash $SCRIPTS/set_outgoing_interfaces_onstart.sh &
+fi
 
 # Redis
 echo never > /sys/kernel/mm/transparent_hugepage/enabled
