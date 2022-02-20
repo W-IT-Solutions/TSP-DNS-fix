@@ -15,15 +15,16 @@ done
 readarray -t interfaces < <(cat /tmp/interfaces)
 for INTERFACE in "${interfaces[@]// /}" ; do
     IP=$(ip address show dev "$INTERFACE" | grep inet | head -1 | awk '{printf "%s\n",$2}' | sed 's|/24||g')
-    if [[ "$IP" =~ .*:.* ]]; then
-        echo "IPv6, do nothing"
-    elif [ -z "$IP" ]; then
+if [ -z "$IP" ]; then
         echo "$(date) - Setup Unbound - No IP on $INTERFACE" && exit 1
     else
         echo "outgoing-interface: $IP" >> /etc/unbound/outgoing.conf
         echo "IPv4"
     fi
 done
+
+# check that there will be no IPV6 addresses present
+sed -i /::/d /etc/unbound/outgoing.conf
 
 unbound-control reload
 

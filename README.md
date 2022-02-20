@@ -86,7 +86,7 @@ Every interface that is up and has a proper LTE connection is able to do lookups
 * `unbound-control flush` Flush all
 * `unbound-control flush domain.com` Flush domain only
 
-## files
+## Files
 * `/tmp/health_$interface` File with interface health values that we read from
 * `/var/log/DNS_fix_install.log` Log of install.sh
 * `/var/log/health_check.log` Log of health_check.sh
