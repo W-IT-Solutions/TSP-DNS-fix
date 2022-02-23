@@ -131,8 +131,6 @@ do
 	CONNECTION=$(cat "/tmp/health_$INTERFACE" | awk '{print $5}')
 	if ! [ -f /tmp/health_"$INTERFACE" ]; then
 		error "$(date) - $INTERFACE - Failed to read /tmp/health_$INTERFACE"
-	else
-		success "$(date) - $INTERFACE $IP - Loss: $CONNECTION%"
 	fi
 
 	if [ "$CONNECTION" == "0" ]; then
