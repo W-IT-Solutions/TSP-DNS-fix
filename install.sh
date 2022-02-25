@@ -105,6 +105,17 @@ root_check() {
 }
 
 ###############################################################################################################
+# CONNECTIVITY CHECK                                                                                          #
+###############################################################################################################
+if ! ping -c 2 1.1.1.1; then
+    fatal "$(date) - INIT - No internet"    
+fi
+
+if ! host facebook.com; then
+    fatal "$(date) - INIT - No DNS"
+fi
+
+###############################################################################################################
 # DEBUG                                                                                                       #
 ###############################################################################################################
 debug_mode() {
@@ -577,7 +588,7 @@ server:
 
     # Enable chroot (i.e, change apparent root directory for the current
     # running process and its children)
-    chroot: "/etc/unbound"
+    # chroot: "/etc/unbound"
     
     # Deny queries of type ANY with an empty response.
     deny-any: yes
