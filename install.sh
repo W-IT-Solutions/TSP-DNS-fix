@@ -531,6 +531,7 @@ server:
     # logfile: /dev/null
 
     # Only log errors
+    # Turn off for production, least logging possible for privacy.
     verbosity: 2
     use-syslog: yes
 
