@@ -710,7 +710,7 @@ server:
     # The number of threads to create to serve clients.
     # This is set dynamically at run time to effectively use available CPUs
     # resources
-    num-threads: 2
+    num-threads: 4
 
     # Number of ports to open. This number of file descriptors can be opened
     # per thread.
@@ -804,7 +804,7 @@ server:
         #forward-addr: 2001:610:1:40ba:145:100:185:16@853#dnsovertls1.sinodun.com
 
 remote-control:
-    control-enable: yes
+    control-enable: no
 EOF
 
 # Add all available NICs as outbound interface for unbound
@@ -826,7 +826,7 @@ systemctl restart unbound.service && success "$(date) - Setup Unbound - Restarte
 # TEST UNBOUND                                                                                                #
 ###############################################################################################################
 sleep 5
-unbound-control flush facebook.com && success "$(date) - DNS Check - Flush DNS" || fatal "$(date) - DNS Check - Flushing DNS failed"
+#unbound-control flush facebook.com && success "$(date) - DNS Check - Flush DNS" || fatal "$(date) - DNS Check - Flushing DNS failed"
 
 if host facebook.com; then
     success "$(date) - DNS Check - DNS is working via unbound!"
