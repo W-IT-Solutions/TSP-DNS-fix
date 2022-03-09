@@ -26,6 +26,6 @@ done
 # check that there will be no IPV6 addresses present
 sed -i /::/d /etc/unbound/outgoing.conf
 
-unbound-control reload
+service unbound restart
 
 exit 0
