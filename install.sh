@@ -867,7 +867,6 @@ header "$(date) - Misc"
 success "$(date) - Script finished - $COUNTER Warning(s) and / or error(s)"
 cat /var/log/health_check_script_errors_warnings.log | grep -v 'Loss is still higher' | grep -v 'Failed to reload unbound'
 
-success "$(date) Rebooting press control + C if you do not want to reboot in 15 seconds"
-sleep 15 && reboot
+bash /etc/rc.local && success "$(date) - Executed rc.local" || fatal "$(date) - Failed to execute rc.local"
 
 exit 0
