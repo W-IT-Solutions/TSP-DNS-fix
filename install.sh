@@ -260,9 +260,9 @@ cat > /etc/rc.local <<EOF && success "$(date) - Setup RC.LOCAL - Wrote file" || 
 # value on error.
 
 # Unbound flush and query checks for evaluation
-if [ -f $SCRIPTS/unbound_check.sh ]; then
-    /bin/bash $SCRIPTS/unbound_check.sh &
-fi
+#if [ -f $SCRIPTS/unbound_check.sh ]; then
+#    /bin/bash $SCRIPTS/unbound_check.sh &
+#fi
 
 # Populate unbound outgoing interfaces
 if [ -f $SCRIPTS/set_outgoing_interfaces_onstart.sh ]; then
