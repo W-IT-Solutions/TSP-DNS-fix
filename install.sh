@@ -282,27 +282,23 @@ systemctl start rc-local && success "$(date) - Setup RC.LOCAL - Start service" |
 ###############################################################################################################
 # GRAB HEALTH_CHECK.SH                                                                                        #
 ###############################################################################################################
-if ! [ -f "$SCRIPTS"/health_check.sh ]; then
-    curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh > "$SCRIPTS"/health_check.sh && success "$(date) - Grab health_check.sh" || error "$(date) - Grab health_check.sh"
-    chmod +x "$SCRIPTS"/health_check.sh && success "$(date) - chmod +x health_check.sh" || error "$(date) - chmod +x health_check.sh"
-fi
+curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/health_check.sh > "$SCRIPTS"/health_check.sh && success "$(date) - Grab health_check.sh" || error "$(date) - Grab health_check.sh"
+chmod +x "$SCRIPTS"/health_check.sh && success "$(date) - chmod +x health_check.sh" || error "$(date) - chmod +x health_check.sh"
+
 
 ###############################################################################################################
 # GRAB SET_OUTGOING_INTERFACES_ONSTART.SH                                                                     #
 ###############################################################################################################
-if ! [ -f "$SCRIPTS"/set_outgoing_interfaces_onstart.sh ]; then
-    curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/set_outgoing_interfaces_onstart.sh > "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - Grab set_outgoing_interfaces_onstart.sh" || error "$(date) - Grab set_outgoing_interfaces_onstart.sh"
-    chmod +x "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Done" || error "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Failed"
-    sed -i "s|MAINETHNIC=|MAINETHNIC=$MAINETHNIC|g" "$SCRIPTS"/set_outgoing_interfaces_onstart.sh
-fi 
+ curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/set_outgoing_interfaces_onstart.sh > "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - Grab set_outgoing_interfaces_onstart.sh" || error "$(date) - Grab set_outgoing_interfaces_onstart.sh"
+ chmod +x "$SCRIPTS"/set_outgoing_interfaces_onstart.sh && success "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Done" || error "$(date) - chmod +x set_outgoing_interfaces_onstart.sh - Failed"
+ sed -i "s|MAINETHNIC=|MAINETHNIC=$MAINETHNIC|g" "$SCRIPTS"/set_outgoing_interfaces_onstart.sh
+
 
 ###############################################################################################################
 # GRAB UNBOUND_CHECK.SH                                                                                       #
 ###############################################################################################################
-if ! [ -f "$SCRIPTS"/unbound_check.sh ]; then
-    curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/unbound_check.sh > "$SCRIPTS"/unbound_check.sh && success "$(date) - Grab unbound_check.sh" || error "$(date) - Grab unbound_check.sh"
-    chmod +x "$SCRIPTS"/unbound_check.sh && success "$(date) - chmod +x unbound_check.sh" || error "$(date) - chmod +x unbound_check.sh"
-fi 
+curl https://raw.githubusercontent.com/WaaromZoMoeilijk/TSP-DNS-fix/main/unbound_check.sh > "$SCRIPTS"/unbound_check.sh && success "$(date) - Grab unbound_check.sh" || error "$(date) - Grab unbound_check.sh"
+chmod +x "$SCRIPTS"/unbound_check.sh && success "$(date) - chmod +x unbound_check.sh" || error "$(date) - chmod +x unbound_check.sh"
 
 ###############################################################################################################
 # INSTALL DPINGER                                                                                             #
