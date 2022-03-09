@@ -149,7 +149,7 @@ do
 			#unbound-control dump_cache > /etc/unbound/cache.file && success "$(date) - Backed up unbound cache to /etc/unbound/cache.file" || error "$(date) - Failed to backup unbound cache to /etc/unbound/cache.file"
 			#unbound-control reload && success "$(date) - Reload unbound" || error "$(date) - Failed to reload unbound"
 			#unbound-control load_cache < /etc/unbound/cache.file && success "$(date) - Loaded unbound cache from /etc/unbound/cache.file" || error "$(date) - Failed to load unbound cache from /etc/unbound/cache.file"
-			service unbound reload
+			service unbound restart
 		fi
 
 		# If loss is 0% set original metric value back
@@ -167,7 +167,7 @@ do
 			#unbound-control dump_cache > /etc/unbound/cache.file && success "$(date) - Backed up unbound cache to /etc/unbound/cache.file" || error "$(date) - Failed to backup unbound cache to /etc/unbound/cache.file"
 			#unbound-control reload && success "$(date) - Reload unbound" || error "$(date) - Failed to reload unbound"
 			#unbound-control load_cache < /etc/unbound/cache.file && success "$(date) - Loaded unbound cache from /etc/unbound/cache.file" || error "$(date) - Failed to load unbound cache from /etc/unbound/cache.file"
-			service unbound reload
+			service unbound restart
 		fi
 
 		#CURRENTMETRIC=$(route -n | grep 'UG' | grep "$INTERFACE" | awk '{printf "%s\n",$5}')
