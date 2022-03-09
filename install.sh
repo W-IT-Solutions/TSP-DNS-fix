@@ -111,7 +111,7 @@ if ! ping -c 2 1.1.1.1; then
     fatal "$(date) - INIT - No internet"    
 fi
 
-if ! host facebook.com; then
+if ! host google.com; then
     fatal "$(date) - INIT - No DNS"
 fi
 
