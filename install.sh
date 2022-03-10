@@ -181,6 +181,11 @@ WantedBy=multi-user.target
 EOF
 # -D $LATENCY
 
+    # Remove lock
+    if [ -f /tmp/.script_lock_$i ]; then
+    	rm -rf /tmp/.script_lock_$i && success "$(date) - Removed lock file /tmp/.script_lock_$i" || fatal "$(date) - Failed to removed lock file /tmp/.script_lock_$i"
+    fi
+    
     # Enable and start
     systemctl -q daemon-reload && success "$(date) - daemon-reload - $i" || fatal "$(date) - daemon-reload - $i"
     systemctl -q enable health_check_"$i".service && success "$(date) - enable health_check_$i.service - Ok" || fatal "$(date) - enable health_check_$i.service - Failed"
