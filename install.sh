@@ -37,7 +37,7 @@ cat /dev/null > /var/log/health_check_script_errors_warnings.log && echo "$(date
 ###############
 ##### DYNAMIC #
 ###############
-VERSION="0.2"
+VERSION="0.4"
 DEBUG="1" # 1 = on / 0 = off
 SCRIPTS="/var/scripts" # Directory to place scripts beloning to this project
 MAINETHNIC="enp0s31f6" # Interface to ignore, please adjust, should be different on each system
