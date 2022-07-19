@@ -1,6 +1,6 @@
 #!/bin/bash 
 # shellcheck disable=SC2034,SC2015,SC2116,SC2002
-# Jan 6 2022 - scripting@waaromzomoeilijk.nl
+# Jan 6 2022 - scripting@w-solutions.dev
 # Install unbound as local dns cache server, let the system use that as its primary DNS and let unbound query DNS requests over all LTE interfaces
 # This uses https://www.cloudflare.com/learning/dns/dns-over-tls/ (optional)
 #
