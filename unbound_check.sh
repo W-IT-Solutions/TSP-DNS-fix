@@ -1,6 +1,6 @@
 #!/bin/bash 
 # shellcheck disable=SC2015,SC2002
-# Jan 6 2022 - scripting@waaromzomoeilijk.nl
+# Jan 6 2022 - scripting@w-solutions.dev
 #
 ################################ Logger
 INTERACTIVE="0" # 1 Foreground / 0 = Background - Log all script output to file (0) or just output everything in stout (1)
